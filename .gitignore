@@ -1,3 +1,5 @@
 .DS_Store
 .venv/
 data/SROIE2019/
+.ruff_cache
+**.csv
