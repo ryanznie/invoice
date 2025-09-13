@@ -1,0 +1,12 @@
+[project]
+name = "invoice"
+version = "0.1.0"
+description = "Invoice processing project"
+authors = [{ name = "Ryan Z. Nie", email = "ryanznie@gatech.edu" }]
+
+dependencies = [
+    "pandas>=2.3.2",
+    "pillow>=11.3.0",
+    "pre-commit>=4.3.0",
+    "streamlit>=1.49.1",
+]
