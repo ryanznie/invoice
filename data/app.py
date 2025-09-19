@@ -83,7 +83,7 @@ footer = st.container()
 with header:
     st.write(f"**File:** {img_file} ({index + 1}/{len(img_files)})")
     # Navigation and Save buttons
-    col1, col2, col3, _ = st.columns([2, 2, 2, 2])
+    col1, col2, col3 = st.columns(3)
     prev_button = col1.button("⬅️ Previous")
     next_button = col2.button("Next ➡️")
     save_button = col3.button("💾 Save and Next")
@@ -117,16 +117,33 @@ if save_button:
         st.session_state.current_index += 1
         st.rerun()
 
-# Footer with Go To Page
+# Footer with Go To Page and Go To File
 with footer:
     st.write("___")
-    target_page = st.number_input(
-        "Go to page:",
-        min_value=1,
-        max_value=len(img_files),
-        value=index + 1,
-        step=1,
-    )
-    if target_page != index + 1:
-        st.session_state.current_index = target_page - 1
-        st.rerun()
+    col1, col2, col3 = st.columns([2, 3, 1])
+
+    with col1:
+        target_page = st.number_input(
+            "Go to page:",
+            min_value=1,
+            max_value=len(img_files),
+            value=index + 1,
+            step=1,
+            label_visibility="collapsed",
+        )
+        if target_page != index + 1:
+            st.session_state.current_index = target_page - 1
+            st.rerun()
+
+    with col2:
+        go_to_filename = st.text_input(
+            "Go to file:", placeholder="Enter filename...", label_visibility="collapsed"
+        )
+
+    with col3:
+        if st.button("Go"):
+            if go_to_filename in img_files:
+                st.session_state.current_index = img_files.index(go_to_filename)
+                st.rerun()
+            elif go_to_filename:
+                st.error(f"File '{go_to_filename}' not found.")
