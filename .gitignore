@@ -4,3 +4,4 @@ data/SROIE2019/
 .ruff_cache
 **.csv
 **.png
+**__pycache__
