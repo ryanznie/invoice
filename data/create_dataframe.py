@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import json
 import logging
-import string
+from validate_labels import validate_label
 from tqdm import tqdm
 
 # Configure logging
@@ -14,6 +14,7 @@ img_dir = os.path.join(base_path, "img")
 box_dir = os.path.join(base_path, "box")
 entities_dir = os.path.join(base_path, "entities")
 labels_json_path = "data/labels.json"
+output_path = "data/invoices.csv"
 
 # Load labels from JSON
 with open(labels_json_path, "r", encoding="utf-8") as f:
@@ -34,7 +35,7 @@ for basename in tqdm(file_basenames, desc="Processing files"):
     # --- Validation: Check for missing files ---
     img_path = os.path.join(img_dir, img_filename)
     if not os.path.exists(img_path):
-        logging.warning(f"Missing image file: {img_filename}")
+        logging.warning(f"⚠️ Missing image file: {img_filename}")
 
     if os.path.exists(box_filepath) and os.path.exists(entities_filepath):
 
@@ -45,30 +46,12 @@ for basename in tqdm(file_basenames, desc="Processing files"):
         # Get label from JSON data
         label_content = labels_data.get(img_filename)
 
-        # --- Validation: Check for missing JSON labels ---
-        if label_content is None:
-            logging.warning(f"Missing JSON label for: {img_filename}")
+        # --- Validation: Check for missing or invalid JSON labels ---
+        label_content, is_missing, _ = validate_label(
+            label_content, img_filename, labels_json_path
+        )
+        if is_missing:
             missing_labels_count += 1
-        elif isinstance(label_content, str):
-            # --- Validation: Check label for whitespace and punctuation ---
-            original_label = label_content
-            # Check for whitespace
-            if label_content.strip() != label_content:
-                logging.warning(
-                    f"Label '{original_label}' in {img_filename} has leading/trailing whitespace. Fixed in dataframe. Will need to fix in labels.json!"
-                )
-                label_content = label_content.strip()  # Re-assign the stripped string
-
-            # Check for punctuation
-            if label_content and label_content[0] in string.punctuation:
-                logging.warning(
-                    f"Label '{label_content}' in {img_filename} starts with punctuation."
-                )
-            if label_content and label_content[-1] in string.punctuation:
-                logging.warning(
-                    f"Label '{label_content}' in {img_filename} ends with punctuation."
-                )
-
         # Read and process each line from the box file
         with open(box_filepath, "r", encoding="utf-8") as f:
             for line in f.readlines():
@@ -94,13 +77,23 @@ for basename in tqdm(file_basenames, desc="Processing files"):
                         }
                     )
 
-# Log the total count of missing labels
-if missing_labels_count > 0:
-    total_files = len(file_basenames)
-    percentage = (missing_labels_count / total_files * 100) if total_files > 0 else 0
+# Log the total count of labeled and missing labels
+total_files = len(file_basenames)
+labeled_count = total_files - missing_labels_count
+
+if total_files > 0:
+    labeled_percentage = (labeled_count / total_files) * 100
+    missing_percentage = (missing_labels_count / total_files) * 100
+    logging.info("=====RESULTS=====")
     logging.info(
-        f"Total number of missing labels: {missing_labels_count} out of {total_files} files ({percentage:.2f}%)."
+        f"Labeled images: {labeled_count}/{total_files} ({labeled_percentage:.2f}%)"
     )
+    if missing_labels_count > 0:
+        logging.warning(
+            f"⚠️ Missing labels: {missing_labels_count}/{total_files} ({missing_percentage:.2f}%)"
+        )
+else:
+    logging.info(f"No files found in {img_dir} to process.")
 
 # Create a pandas DataFrame
 df = pd.DataFrame(data)
@@ -108,12 +101,11 @@ df = pd.DataFrame(data)
 # --- Validation: Check for duplicates ---
 if df.duplicated().any():
     duplicate_rows = df[df.duplicated(keep=False)]
-    logging.warning(f"Found {len(duplicate_rows)} duplicate rows.")
+    logging.warning(f"⚠️ Found {len(duplicate_rows)} duplicate rows.")
 
 ## TODO: validating dataset, check for duplicates, missing imgs, cleaning up labels (\n), trimming
 
 # Save the DataFrame to a CSV file
-output_path = "data/test_invoices.csv"
 df.to_csv(output_path, index=False)
 
 print(f"DataFrame saved to {output_path}")
