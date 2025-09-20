@@ -4,9 +4,25 @@ import json
 from PIL import Image
 
 # --- Configuration ---
-IMG_DIR = os.path.join("SROIE2019", "train", "img")
-BOX_DIR = os.path.join("SROIE2019", "train", "box")
-LABELS_FILE = "labels.json"
+
+# --- Streamlit App ---
+st.set_page_config(layout="wide")
+st.title("Invoice Data Labeling and Navigation Tool")
+
+# --- Mode Selection ---
+mode = st.sidebar.radio("Select Mode", ("Train", "Test"))
+
+if mode == "Train":
+    IMG_DIR = os.path.join("SROIE2019", "train", "img")
+    BOX_DIR = os.path.join("SROIE2019", "train", "box")
+    LABELS_FILE = "labels.json"
+else:
+    IMG_DIR = os.path.join("SROIE2019", "test", "img")
+    BOX_DIR = os.path.join("SROIE2019", "test", "box")
+    LABELS_FILE = "test_labels.json"
+
+st.sidebar.write(f"**Dataset:** `{IMG_DIR}`")
+st.sidebar.write(f"**Labels:** `{LABELS_FILE}`")
 
 
 # --- Helper Functions ---
@@ -52,10 +68,6 @@ def save_label(img_filename, text_content):
         json.dump(data, f, indent=4)
 
 
-# --- Streamlit App ---
-st.set_page_config(layout="wide")
-st.title("Invoice / Receipt Data Labeling Tool")
-
 img_files, box_files = get_file_paths()
 
 if not img_files:
@@ -94,7 +106,7 @@ with content:
     image, box_content = load_data(img_file, box_file)
 
     with img_col:
-        st.image(image, use_container_width=True)
+        st.image(image, width="stretch")
 
     with text_col:
         edited_text = st.text_area("Label Text", value=box_content, height=500)
