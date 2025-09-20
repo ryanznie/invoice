@@ -2,8 +2,10 @@ import streamlit as st
 import os
 import json
 from PIL import Image
+import datetime
 
 # --- Configuration ---
+AMBIGUOUS_LOG_FILE = "ambiguous_edits.log"
 
 # --- Streamlit App ---
 st.set_page_config(layout="wide")
@@ -21,6 +23,8 @@ else:
     BOX_DIR = os.path.join("SROIE2019", "test", "box")
     LABELS_FILE = "test_labels.json"
 
+sub_mode = st.sidebar.radio("Filter by Label", ("All", "Ambiguous"))
+
 st.sidebar.write(f"**Dataset:** `{IMG_DIR}`")
 st.sidebar.write(f"**Labels:** `{LABELS_FILE}`")
 
@@ -35,6 +39,17 @@ def get_file_paths():
     except FileNotFoundError:
         st.error(f"Directory not found. Make sure '{IMG_DIR}' and '{BOX_DIR}' exist.")
         return [], []
+
+
+def load_labels():
+    """Load labels from the JSON file."""
+    if os.path.exists(LABELS_FILE):
+        with open(LABELS_FILE, "r") as f:
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                return {}
+    return {}
 
 
 def load_data(img_file, box_file):
@@ -53,22 +68,34 @@ def load_data(img_file, box_file):
 
 
 def save_label(img_filename, text_content):
-    """Save a label to the JSON file."""
-    data = {}
-    if os.path.exists(LABELS_FILE):
-        with open(LABELS_FILE, "r") as f:
-            try:
-                data = json.load(f)
-            except json.JSONDecodeError:
-                pass  # Overwrite if file is corrupted
+    """Save a label to the JSON file and log edits to ambiguous files."""
+    labels = load_labels()
+    old_label = labels.get(img_filename, "").strip().lower()
 
-    data[img_filename] = text_content
+    # Log if an 'ambiguous' file is changed to something else
+    if old_label == "ambiguous" and text_content.strip().lower() != "ambiguous":
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log_message = f"{timestamp} - Edited ambiguous file: {img_filename}. New label: '{text_content.strip()}'\n"
+        with open(AMBIGUOUS_LOG_FILE, "a") as log_file:
+            log_file.write(log_message)
 
+    labels[img_filename] = text_content
     with open(LABELS_FILE, "w") as f:
-        json.dump(data, f, indent=4)
+        json.dump(labels, f, indent=4)
 
 
 img_files, box_files = get_file_paths()
+
+# --- Filtering Logic ---
+if sub_mode == "Ambiguous":
+    labels = load_labels()
+    ambiguous_files = [
+        f for f, label in labels.items() if label.strip().lower() == "ambiguous"
+    ]
+
+    # Filter img_files and box_files to only include ambiguous ones
+    img_files = [f for f in img_files if f in ambiguous_files]
+    box_files = [os.path.splitext(f)[0] + ".txt" for f in img_files]
 
 if not img_files:
     st.warning("No images found. Please check your data directories.")
@@ -76,6 +103,10 @@ if not img_files:
 
 # --- Session State ---
 if "current_index" not in st.session_state:
+    st.session_state.current_index = 0
+
+# Reset index if it's out of bounds after filtering
+if st.session_state.current_index >= len(img_files):
     st.session_state.current_index = 0
 
 # --- Navigation and Display ---
