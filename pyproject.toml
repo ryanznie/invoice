@@ -5,6 +5,7 @@ description = "Invoice processing project"
 authors = [{ name = "Ryan Z. Nie", email = "ryanznie@gatech.edu" }]
 
 dependencies = [
+    "dvc>=3.63.0",
     "ipykernel>=6.30.1",
     "pandas>=2.3.2",
     "pillow>=11.3.0",

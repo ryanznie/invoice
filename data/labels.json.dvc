@@ -1,0 +1,5 @@
+outs:
+- md5: 46d2a53045840fc1fdcd843aabac107f
+  size: 24176
+  hash: md5
+  path: labels.json
