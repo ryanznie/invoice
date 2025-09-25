@@ -60,7 +60,7 @@ def load_data(img_file, box_file):
     image = Image.open(img_path)
 
     try:
-        with open(box_path, "r", encoding="utf-8") as f:
+        with open(box_path, "r", encoding="utf-8", errors="ignore") as f:
             box_content = f.read()
     except FileNotFoundError:
         box_content = ""
