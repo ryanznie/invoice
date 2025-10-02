@@ -80,9 +80,14 @@ def preprocess(ocr_dir, labels_path, output_path):
         for entry in ocr_entries:
             text = entry["text"]
             bbox = entry["bbox"]
-            tokens = split_invoice_string(text)
-            for token in tokens:
-                words.append(token)
+
+            if label in text:
+                tokens = split_invoice_string(text)
+                for token in tokens:
+                    words.append(token)
+                    bboxes.append(normalize_bbox(bbox))
+            else:
+                words.append(text)
                 bboxes.append(normalize_bbox(bbox))
 
         labels = ["O"] * len(words)
