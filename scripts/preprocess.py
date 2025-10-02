@@ -40,12 +40,12 @@ def parse_ocr_file(path):
 def split_invoice_string(invoice_str):
     """Split invoice string into tokens."""
     # Keep delimiters by capturing them
-    tokens_with_delimiters = re.split(r"([/-])", invoice_str.strip())
+    tokens_with_delimiters = re.split(r"([/:.#\(\)\[\]-])", invoice_str.strip())
 
     # Split tokens by space and filter out empty strings
     final_tokens = []
     for token in tokens_with_delimiters:
-        if token in ("/", "-"):
+        if token in ("/", "-", ":", ".", "#", "[", "]", "(", ")"):
             final_tokens.append(token)
         else:
             final_tokens.extend(token.split())
