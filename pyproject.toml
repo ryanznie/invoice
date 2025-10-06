@@ -12,4 +12,15 @@ dependencies = [
     "pre-commit>=4.3.0",
     "streamlit>=1.49.1",
     "tqdm>=4.67.1",
+    "torch",
+    "transformers",
+    "datasets",
+    "peft",
+    "accelerate",
+    "evaluate",
+    "scikit-learn",
 ]
+
+[tool.uv]
+required-environments = ["sys_platform == 'darwin'"]
+
