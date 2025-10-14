@@ -1,3 +1,23 @@
+---
+language:
+- en
+license: mit
+tags:
+- layoutlmv3
+- lora
+- document-ai
+- invoice-extraction
+- token-classification
+- peft
+datasets:
+- sroie
+metrics:
+- f1
+- precision
+- recall
+base_model: microsoft/layoutlmv3-base
+pipeline_tag: token-classification
+---
 # LayoutLMv3-LoRA for Invoice Number Extraction
 
 ## Model Summary
