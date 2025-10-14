@@ -1,7 +1,7 @@
 {
   "train_data_file": "data/SROIE2019/train/train.json",
   "test_data_file": "data/SROIE2019/test/test.json",
-  "output_dir": "models/layoutlmv3-lora",
+  "output_dir": "models/layoutlmv3-lora-invoice-number",
   "model_name": "microsoft/layoutlmv3-base",
   "max_length": 512,
   "label2id": {

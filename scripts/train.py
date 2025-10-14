@@ -471,7 +471,7 @@ def predict_invoice(
     image_path: str,
     words: List[str],
     boxes: List[List[int]],
-    model_path: str = "models/layoutlmv3-lora",
+    model_path: str = "models/layoutlmv3-lora-invoice-number",
     base_model: str = "microsoft/layoutlmv3-base",
 ):
     """
@@ -556,7 +556,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--train_data", default="data/SROIE2019/train/train.json")
     parser.add_argument("--test_data", default="data/SROIE2019/test/test.json")
-    parser.add_argument("--output_dir", default="models/layoutlmv3-lora")
+    parser.add_argument("--output_dir", default="models/layoutlmv3-lora-invoice-number")
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--batch_size", type=int, default=2)
     parser.add_argument("--learning_rate", type=float, default=5e-5)
