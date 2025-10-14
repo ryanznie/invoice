@@ -1150,6 +1150,7 @@ dependencies = [
     { name = "pillow" },
     { name = "pre-commit" },
     { name = "scikit-learn" },
+    { name = "seqeval" },
     { name = "streamlit" },
     { name = "torch" },
     { name = "tqdm" },
@@ -1168,6 +1169,7 @@ requires-dist = [
     { name = "pillow", specifier = ">=11.3.0" },
     { name = "pre-commit", specifier = ">=4.3.0" },
     { name = "scikit-learn" },
+    { name = "seqeval", specifier = ">=1.2.2" },
     { name = "streamlit", specifier = ">=1.49.1" },
     { name = "torch" },
     { name = "tqdm", specifier = ">=4.67.1" },
@@ -3091,6 +3093,16 @@ sdist = { url = "https://files.pythonhosted.org/packages/72/d1/d3159231aec234a59
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a6/24/4d91e05817e92e3a61c8a21e08fd0f390f5301f1c448b137c57c4bc6e543/semver-3.0.4-py3-none-any.whl", hash = "sha256:9c824d87ba7f7ab4a1890799cec8596f15c1241cb473404ea1cb0c55e4b04746", size = 17912, upload-time = "2025-01-24T13:19:24.949Z" },
 ]
+
+[[package]]
+name = "seqeval"
+version = "1.2.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "scikit-learn" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9d/2d/233c79d5b4e5ab1dbf111242299153f3caddddbb691219f363ad55ce783d/seqeval-1.2.2.tar.gz", hash = "sha256:f28e97c3ab96d6fcd32b648f6438ff2e09cfba87f05939da9b3970713ec56e6f", size = 43605, upload-time = "2020-10-24T00:24:54.926Z" }
 
 [[package]]
 name = "setuptools"

@@ -19,6 +19,7 @@ dependencies = [
     "accelerate",
     "evaluate",
     "scikit-learn",
+    "seqeval>=1.2.2",
 ]
 
 [tool.uv]
