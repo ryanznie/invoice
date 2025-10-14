@@ -1,206 +1,181 @@
+# LayoutLMv3-LoRA for Invoice Number Extraction
+
+## Model Summary
+
+| Field | Details |
+|-------|----------|
+| **Base Model** | microsoft/layoutlmv3-base |
+| **Model Name** | layoutlmv3-lora-invoice-number |
+| **Fine-Tuning Method** | LoRA (Low-Rank Adaptation) |
+| **Task** | Token Classification — Invoice Number Extraction |
+| **Dataset** | SROIE 2019 (invoice subset) |
+| **License** | MIT (inherited from base model) |
+| **Developed by** | Ryan Z. Nie |
+
 ---
-base_model: microsoft/layoutlmv3-base
-library_name: peft
-tags:
-- base_model:adapter:microsoft/layoutlmv3-base
-- lora
-- transformers
+
+## Model Description
+
+This model fine-tunes **LayoutLMv3-base** using **LoRA** for the task of **invoice number extraction** from scanned receipts and invoices. It leverages both visual (layout) and textual information from documents to identify and extract invoice numbers accurately.
+
+The model is lightweight and memory-efficient, trained with low-rank adapters on attention and MLP layers to minimize computational and storage costs without sacrificing accuracy.
+
 ---
 
-# Model Card for Model ID
+## Intended Use
 
-<!-- Provide a quick summary of what the model is/does. -->
+### Primary Task
+Token classification for invoice number extraction from document images.
 
+### Input
+OCR-parsed document images containing:
+- Text words
+- Bounding boxes
+- Layout information
 
+### Output
+Invoice number tokens tagged using BIO labels.
 
-## Model Details
+### Example Use Case
+Extracting invoice or bill numbers from scanned receipts in accounting automation systems or document understanding pipelines.
 
-### Model Description
+---
 
-<!-- Provide a longer summary of what this model is. -->
+## Example Usage
 
+```python
+from transformers import AutoProcessor, AutoModelForTokenClassification
+from PIL import Image
+import torch
 
+# Load processor and model
+processor = AutoProcessor.from_pretrained("ryanznie/layoutlmv3-lora-invoice-number")
+model = AutoModelForTokenClassification.from_pretrained("ryanznie/layoutlmv3-lora-invoice-number")
 
-- **Developed by:** [More Information Needed]
-- **Funded by [optional]:** [More Information Needed]
-- **Shared by [optional]:** [More Information Needed]
-- **Model type:** [More Information Needed]
-- **Language(s) (NLP):** [More Information Needed]
-- **License:** [More Information Needed]
-- **Finetuned from model [optional]:** [More Information Needed]
+# Example input
+image = Image.open("invoice_sample.jpg")
+words = ["Invoice", "No.", "PEGIV-1030765"]
+boxes = [[100, 200, 200, 230], [210, 200, 250, 230], [260, 200, 400, 230]]
 
-### Model Sources [optional]
+# Preprocess
+encoding = processor(image, words, boxes=boxes, return_tensors="pt")
 
-<!-- Provide the basic links for the model. -->
+# Predict
+outputs = model(**encoding)
+predictions = torch.argmax(outputs.logits, dim=-1)
 
-- **Repository:** [More Information Needed]
-- **Paper [optional]:** [More Information Needed]
-- **Demo [optional]:** [More Information Needed]
+# Print results
+print(predictions)
+```
 
-## Uses
-
-<!-- Address questions around how the model is intended to be used, including the foreseeable users of the model and those affected by the model. -->
-
-### Direct Use
-
-<!-- This section is for the model use without fine-tuning or plugging into a larger ecosystem/app. -->
-
-[More Information Needed]
-
-### Downstream Use [optional]
-
-<!-- This section is for the model use when fine-tuned for a task, or when plugged into a larger ecosystem/app -->
-
-[More Information Needed]
-
-### Out-of-Scope Use
-
-<!-- This section addresses misuse, malicious use, and uses that the model will not work well for. -->
-
-[More Information Needed]
-
-## Bias, Risks, and Limitations
-
-<!-- This section is meant to convey both technical and sociotechnical limitations. -->
-
-[More Information Needed]
-
-### Recommendations
-
-<!-- This section is meant to convey recommendations with respect to the bias, risk, and technical limitations. -->
-
-Users (both direct and downstream) should be made aware of the risks, biases and limitations of the model. More information needed for further recommendations.
-
-## How to Get Started with the Model
-
-Use the code below to get started with the model.
-
-[More Information Needed]
+---
 
 ## Training Details
 
-### Training Data
+### Dataset
+[SROIE 2019 w/ invoices Dataset](https://www.kaggle.com/datasets/ryanznie/sroie-datasetv2-with-labels)
+[Dataset Documentations](https://www.notion.so/Dataset-Documentation-Notes-1609faffd568479dbaf1c072b23c472d)
 
-<!-- This should link to a Dataset Card, perhaps with a short stub of information on what the training data is all about as well as documentation related to data pre-processing or additional filtering. -->
+### Training Configuration
+- **Hardware:** Apple MacBook M2 (8-core CPU, 16GB RAM)
+- **Acceleration:** Apple Metal (MPS)
+- **Duration:** ~1.5–2 hours
+- **Framework:** Hugging Face Transformers
+- **Fine-tuning Method:** LoRA (on attention and MLP layers)
+- **Optimization Objective:** FocalLoss
+- **Training Mode:** Mixed-precision training
 
-[More Information Needed]
+### Technical Specifications
+- **Base Architecture:** LayoutLMv3
+- **Adapter Type:** LoRA
+- **Target Modules:** Attention and MLP layers
+- **Objective:** Token classification for invoice number extraction
 
-### Training Procedure
+### Framework Versions
 
-<!-- This relates heavily to the Technical Specifications. Content here should link to that section when it is relevant to the training procedure. -->
+| Component | Version |
+|------------|----------|
+| Python | 3.11.13 |
+| PyTorch | 2.8.0 |
+| Transformers | 4.57.0 |
+| PEFT | 0.17.1 |
 
-#### Preprocessing [optional]
+---
 
-[More Information Needed]
+## Performance
 
+The model performs well on invoice number extraction tasks, correctly combining multi-token predictions into complete invoice numbers (e.g., `PEGIV-1030765`). After postprocessing, it achieves ~81% accuracy on the SROIE 2019 test set.
 
-#### Training Hyperparameters
+### Evaluation Metrics
+- F1-score for entity-level invoice number recognition
+- Precision and recall measured on validation split of SROIE 2019
+- Overall accuracy
 
-- **Training regime:** [More Information Needed] <!--fp32, fp16 mixed precision, bf16 mixed precision, bf16 non-mixed precision, fp16 non-mixed precision, fp8 mixed precision -->
+---
 
-#### Speeds, Sizes, Times [optional]
+## Limitations
 
-<!-- This section provides information about throughput, start/end time, checkpoint size if relevant, etc. -->
+- The model is specialized for **English-language invoices** and **SROIE-like layouts**
+- May mispredict when invoice number patterns differ significantly (e.g., multiple dashes or alphanumeric codes not seen during training)
+- Performance may degrade on handwritten or low-quality scans
+- Limited to document types similar to those in the training dataset
 
-[More Information Needed]
+---
 
-## Evaluation
+## Ethical Considerations
 
-<!-- This section describes the evaluation protocols and provides the results. -->
+- Ensure document data used respects privacy and does not contain sensitive or personal information
+- The model should not be used to process private or confidential documents without explicit consent
+- Consider data protection regulations (GDPR, CCPA, etc.) when processing invoices
+- Verify accuracy before using in production systems that affect financial decisions
 
-### Testing Data, Factors & Metrics
-
-#### Testing Data
-
-<!-- This should link to a Dataset Card if possible. -->
-
-[More Information Needed]
-
-#### Factors
-
-<!-- These are the things the evaluation is disaggregating by, e.g., subpopulations or domains. -->
-
-[More Information Needed]
-
-#### Metrics
-
-<!-- These are the evaluation metrics being used, ideally with a description of why. -->
-
-[More Information Needed]
-
-### Results
-
-[More Information Needed]
-
-#### Summary
-
-
-
-## Model Examination [optional]
-
-<!-- Relevant interpretability work for the model goes here -->
-
-[More Information Needed]
+---
 
 ## Environmental Impact
 
-<!-- Total emissions (in grams of CO2eq) and additional considerations, such as electricity usage, go here. Edit the suggested text below accordingly -->
+Carbon emissions estimated using the [Machine Learning Impact Calculator](https://mlco2.github.io/impact#compute) presented in [Lacoste et al. (2019)](https://arxiv.org/abs/1910.09700).
 
-Carbon emissions can be estimated using the [Machine Learning Impact calculator](https://mlco2.github.io/impact#compute) presented in [Lacoste et al. (2019)](https://arxiv.org/abs/1910.09700).
+- **Hardware Type:** Apple MacBook M2 (8-core)
+- **Hours Used:** ~2 hours
+- **Cloud Provider:** Local (no cloud compute)
+- **Compute Region:** United States
+- **Carbon Emitted:** Negligible (< 0.01 kg CO₂e)
 
-- **Hardware Type:** [More Information Needed]
-- **Hours used:** [More Information Needed]
-- **Cloud Provider:** [More Information Needed]
-- **Compute Region:** [More Information Needed]
-- **Carbon Emitted:** [More Information Needed]
+---
 
-## Technical Specifications [optional]
+## Glossary
 
-### Model Architecture and Objective
+- **LayoutLMv3** — A transformer-based model for document understanding that fuses text, layout, and image embeddings
+- **LoRA (Low-Rank Adaptation)** — A lightweight fine-tuning method where small trainable matrices are added to specific layers (e.g., attention and MLP), enabling efficient adaptation without updating full model weights
+- **Token Classification** — A form of sequence labeling where each token is assigned a class label, used here for identifying invoice numbers within document text
+- **BIO Labels** — Begin, Inside, Outside tagging scheme for named entity recognition
 
-[More Information Needed]
+---
 
-### Compute Infrastructure
+## Citation
 
-[More Information Needed]
+If you use this model, please cite:
 
-#### Hardware
+```bibtex
+@misc{nie2025layoutlmv3lora,
+  author = {Ryan Z. Nie},
+  title = {LayoutLMv3-LoRA for Invoice Number Extraction},
+  year = {2025},
+  howpublished = {\url{https://huggingface.co/ryanznie/layoutlmv3-lora-invoice-number}},
+  note = {Fine-tuned LayoutLMv3 using LoRA on the SROIE 2019 dataset.}
+}
+```
 
-[More Information Needed]
+---
 
-#### Software
+## Contact Information
 
-[More Information Needed]
+For feedback, questions, or collaboration inquiries:
 
-## Citation [optional]
+- **Hugging Face:** [@ryanznie](https://huggingface.co/ryanznie)
+- **Email:** [ryanznie [at] gatech [dot] edu](mailto:ryanznie@gatech.edu)
+- **GitHub:** [@ryanznie](https://github.com/ryanznie)
+- **LinkedIn:** [in/ryanznie](https://www.linkedin.com/in/ryanznie/)
 
-<!-- If there is a paper or blog post introducing the model, the APA and Bibtex information for that should go in this section. -->
-
-**BibTeX:**
-
-[More Information Needed]
-
-**APA:**
-
-[More Information Needed]
-
-## Glossary [optional]
-
-<!-- If relevant, include terms and calculations in this section that can help readers understand the model or model card. -->
-
-[More Information Needed]
-
-## More Information [optional]
-
-[More Information Needed]
-
-## Model Card Authors [optional]
-
-[More Information Needed]
-
-## Model Card Contact
-
-[More Information Needed]
-### Framework versions
-
-- PEFT 0.17.1
+**Model Card Author:** Ryan Z. Nie \
+**Date:** October 2025
