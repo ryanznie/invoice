@@ -6,6 +6,47 @@ from glob import glob
 from PIL import Image
 
 
+def estimate_word_boxes(line_text, tokens, line_bbox):
+    """
+    Estimate individual word bounding boxes from line bbox.
+    Distributes bbox proportionally based on character positions.
+    """
+    if len(tokens) == 1:
+        return [line_bbox]
+
+    x_min, y_min, x_max, y_max = line_bbox
+    line_width = x_max - x_min
+
+    word_boxes = []
+    char_position = 0
+    total_chars = len(line_text)
+
+    for token in tokens:
+        # Find token in remaining text
+        token_start = line_text.find(token, char_position)
+
+        if token_start == -1:
+            # Fallback: equal distribution
+            token_width = line_width / len(tokens)
+            token_x_min = x_min + (len(word_boxes) * token_width)
+            token_x_max = token_x_min + token_width
+        else:
+            # Proportional position
+            token_end = token_start + len(token)
+
+            start_ratio = token_start / max(total_chars, 1)
+            end_ratio = token_end / max(total_chars, 1)
+
+            token_x_min = x_min + (start_ratio * line_width)
+            token_x_max = x_min + (end_ratio * line_width)
+
+            char_position = token_end
+
+        word_boxes.append([int(token_x_min), y_min, int(token_x_max), y_max])
+
+    return word_boxes
+
+
 def normalize_bbox(bbox, image_w, image_h):
     """Normalize OCR bbox to LayoutLM format [0,1000]."""
     x0, y0, x1, y1 = bbox
@@ -90,57 +131,57 @@ def preprocess(ocr_dir, output_path, labels_path=None, mode="train"):
         words, bboxes = [], []
         img_path = os.path.join(ocr_dir.replace("box", "img"), file_id)
         img_w, img_h = Image.open(img_path).size
+
+        # FIX: Estimate word-level boxes
         for entry in ocr_entries:
             text = entry["text"]
-            bbox = entry["bbox"]
+            line_bbox = entry["bbox"]
             tokens = split_invoice_string(text)
-            for token in tokens:
-                words.append(token)
 
-                #### SPLIT ON LINES WITH LABELS ####
-                # if label in text:
-                #     tokens = split_invoice_string(text)
-                #     for token in tokens:
-                #         words.append(token)
-                #         bboxes.append(normalize_bbox(bbox))
-                # else:
-                #     words.append(text)
-                ####################################
-                bboxes.append(normalize_bbox(bbox, image_w=img_w, image_h=img_h))
+            # Estimate individual word boxes from line box
+            token_boxes = estimate_word_boxes(text, tokens, line_bbox)
+
+            # Add words with their estimated boxes
+            for token, token_bbox in zip(tokens, token_boxes):
+                words.append(token)
+                bboxes.append(normalize_bbox(token_bbox, image_w=img_w, image_h=img_h))
 
         labels = ["O"] * len(words)
+
+        # FIX: Better invoice matching
         if mode == "train" and invoice_tokens:
+            words_lower = [w.lower() for w in words]
+            invoice_lower = [t.lower() for t in invoice_tokens]
+
             best_match = None
             min_dist = float("inf")
 
-            # Find all possible start indices
-            starts = [i for i, w in enumerate(words) if w == invoice_tokens[0]]
+            # Try to find match allowing small gaps
+            for start_idx in range(len(words) - len(invoice_tokens) + 1):
+                match_indices = []
+                inv_idx = 0
 
-            for start in starts:
-                indices = [start]
-                curr = start + 1
-                for t in invoice_tokens[1:]:
-                    found = False
-                    for i in range(curr, len(words)):
-                        if words[i] == t:
-                            indices.append(i)
-                            curr = i + 1
-                            found = True
-                            break
-                    if not found:
-                        indices = []
+                for i in range(
+                    start_idx, min(start_idx + len(invoice_tokens) * 2, len(words))
+                ):
+                    if inv_idx >= len(invoice_lower):
                         break
+                    if words_lower[i] == invoice_lower[inv_idx]:
+                        match_indices.append(i)
+                        inv_idx += 1
 
-                if indices:
-                    dist = indices[-1] - indices[0]
+                if len(match_indices) == len(invoice_tokens):
+                    dist = match_indices[-1] - match_indices[0]
                     if dist < min_dist:
                         min_dist = dist
-                        best_match = indices
+                        best_match = match_indices
 
             if best_match:
                 labels[best_match[0]] = "B-INVOICE_ID"
                 for i in best_match[1:]:
                     labels[i] = "I-INVOICE_ID"
+            else:
+                logging.warning(f"⚠️  Could not find invoice '{label}' in {file_id}")
 
         record = {
             "file": file_id,
@@ -151,6 +192,15 @@ def preprocess(ocr_dir, output_path, labels_path=None, mode="train"):
             record["labels"] = labels
 
         processed.append(record)
+
+    if mode == "train":
+        from collections import Counter
+
+        all_labels = [label for record in processed for label in record["labels"]]
+        label_counts = Counter(all_labels)
+        logging.info("Class distributions:")
+        for label, count in sorted(label_counts.items()):
+            logging.info(f"  - {label}: {count}")
 
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(processed, f, indent=2, ensure_ascii=False)
