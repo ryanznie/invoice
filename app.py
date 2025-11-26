@@ -301,10 +301,10 @@ def gradio_predict(image, text_file):
         Formatted results string and highlighted image
     """
     if image is None:
-        return "❌ Please upload an image", None
+        return "Please upload an image", None, ""
 
     if text_file is None:
-        return "❌ Please upload a text file with OCR data", None
+        return "Please upload a text file with OCR data", None, ""
 
     try:
         # Convert image to PIL if needed
@@ -336,38 +336,39 @@ def gradio_predict(image, text_file):
 
         if not words or not boxes:
             return (
-                "❌ File must contain valid OCR data with words and bounding boxes",
+                "File must contain valid OCR data",
                 None,
+                "",
             )
 
         # Run prediction
         result = predict_invoice(image, words, boxes)
 
-        # Format output
-        output = "## 🎯 Extracted Invoice Number\n\n"
-        output += f"### **{result['invoice_number'] or 'Not Found'}**\n\n"
-        output += "---\n\n"
-        output += "## 📋 Word-level Predictions\n\n"
-        output += "| Word | Label | Confidence |\n"
-        output += "|------|-------|------------|\n"
+        # Extract invoice number for separate display
+        invoice_number = result["invoice_number"] or "Not Found"
+
+        # Create annotated image
+        annotated_image = create_annotated_image(image, words, boxes, result["labels"])
+
+        # Format detailed results with word-level predictions
+        detailed_output = "## 📋 Word-level Predictions\n\n"
+        detailed_output += "| Word | Label | Confidence |\n"
+        detailed_output += "|------|-------|------------|\n"
 
         for word, label, conf in zip(
             result["words"], result["labels"], result["confidence_scores"]
         ):
             emoji = (
-                "✅"
-                if label.startswith("B-INVOICE") or label.startswith("I-INVOICE")
+                "🟢"
+                if label.startswith("LABEL_1") or label.startswith("LABEL_2")
                 else "⚪"
             )
-            output += f"| {emoji} {word} | `{label}` | {conf:.3f} |\n"
+            detailed_output += f"| {emoji} {word} | `{label}` | {conf:.3f} |\n"
 
-        # Create annotated image
-        annotated_image = create_annotated_image(image, words, boxes, result["labels"])
-
-        return output, annotated_image
+        return invoice_number, annotated_image, detailed_output
 
     except Exception as e:
-        return f"❌ Error: {str(e)}", None
+        return f"❌ Error: {str(e)}", None, ""
 
 
 def create_annotated_image(image, words, boxes, labels):
@@ -400,8 +401,8 @@ def create_annotated_image(image, words, boxes, labels):
         y1 = int(box[3] * height / 1000)
 
         # Choose color based on label
-        if label.startswith("B-INVOICE") or label.startswith("I-INVOICE"):
-            color = "green"
+        if label.startswith("LABEL_1") or label.startswith("LABEL_2"):
+            color = "red"
             width_box = 3
         else:
             color = "lightblue"
@@ -415,30 +416,23 @@ def create_annotated_image(image, words, boxes, labels):
 
 # Create Gradio interface
 with gr.Blocks(title="Invoice NER Demo") as demo:
+    gr.Markdown("# 🧾 Invoice Number Extraction")
+
+    # How to Use section at the top
+    gr.Markdown("## 💡 How to Use")
     gr.Markdown(
         """
-        # 🧾 Invoice Number Extraction
+        1. Upload an invoice image (JPG, PNG)
+        2. Upload OCR data:
+           - **Text file (.txt)**: One line per word in format `x1,y1,x2,y2,x3,y3,x4,y4,text`
+           - **JSON file (.json)**: With `words` and `bboxes` fields
+        3. Click "Extract Invoice Number"
         
-        Upload an invoice image and its OCR data to extract the invoice number.
-        
-        ### 📝 Supported File Formats
-        
-        **Option 1: Text File (.txt)**
-        ```
-        x1,y1,x2,y2,x3,y3,x4,y4,text
-        83,41,331,41,331,78,83,78,TAN WOON YANN
-        109,171,330,171,330,191,109,191,MR D.I.Y. (M) SDN BHD
-        ```
-        
-        **Option 2: JSON File (.json)**
-        ```json
-        {
-            "words": ["INVOICE", "NO:", "INV-12345"],
-            "bboxes": [[100, 100, 200, 120], [210, 100, 280, 120], ...]
-        }
-        ```
+        The model will highlight detected invoice numbers in **red** and other text in **light blue**.
         """
     )
+
+    gr.Markdown("---")
 
     with gr.Row():
         with gr.Column():
@@ -449,28 +443,44 @@ with gr.Blocks(title="Invoice NER Demo") as demo:
             predict_btn = gr.Button("🚀 Extract Invoice Number", variant="primary")
 
         with gr.Column():
-            output_text = gr.Markdown(label="Results")
+            # Large prominent display for invoice number
+            invoice_output = gr.Textbox(
+                label="🎯 Extracted Invoice Number",
+                placeholder="Invoice number will appear here...",
+                interactive=False,
+                scale=2,
+                container=True,
+                show_label=True,
+            )
             output_image = gr.Image(label="📊 Annotated Image")
+            output_text = gr.Markdown(label="📋 Detailed Results")
 
-    # Example
-    gr.Markdown("### 💡 How to Use")
-    gr.Markdown(
-        """
-        1. Upload an invoice image (JPG, PNG)
-        2. Upload OCR data:
-           - **Text file (.txt)**: One line per word in format `x1,y1,x2,y2,x3,y3,x4,y4,text`
-           - **JSON file (.json)**: With `words` and `bboxes` fields
-        3. Click "Extract Invoice Number"
-        
-        The model will highlight detected invoice numbers in **green** and other text in **light blue**.
-        """
-    )
+    # Supported file formats info at bottom
+    with gr.Accordion("📝 Supported File Formats", open=False):
+        gr.Markdown(
+            """
+            **Option 1: Text File (.txt)**
+            ```
+            x1,y1,x2,y2,x3,y3,x4,y4,text
+            83,41,331,41,331,78,83,78,TAN WOON YANN
+            109,171,330,171,330,191,109,191,MR D.I.Y. (M) SDN BHD
+            ```
+            
+            **Option 2: JSON File (.json)**
+            ```json
+            {
+                "words": ["INVOICE", "NO:", "INV-12345"],
+                "bboxes": [[100, 100, 200, 120], [210, 100, 280, 120], ...]
+            }
+            ```
+            """
+        )
 
     # Connect button
     predict_btn.click(
         fn=gradio_predict,
         inputs=[image_input, text_input],
-        outputs=[output_text, output_image],
+        outputs=[invoice_output, output_image, output_text],
     )
 
 
