@@ -1,7 +1,7 @@
 [project]
-name = "invoice-ner"
+name = "invoice"
 version = "0.1.0"
-description = "LayoutLMv3 model for invoice number extraction with preprocessing utilities"
+description = "Finetuned LayoutLMv3 model for invoice number extraction"
 authors = [{ name = "Ryan Z. Nie", email = "ryanznie@gatech.edu" }]
 readme = "README.md"
 requires-python = ">=3.10"
@@ -12,7 +12,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
 ]
 
 dependencies = [
