@@ -1,8 +1,18 @@
 [project]
 name = "invoice"
 version = "0.1.0"
-description = "Invoice processing project"
+description = "Finetuned LayoutLMv3 model for invoice number extraction"
 authors = [{ name = "Ryan Z. Nie", email = "ryanznie@gatech.edu" }]
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+keywords = ["invoice", "ner", "layoutlmv3", "document-ai", "ocr"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Programming Language :: Python :: 3.10",
+]
 
 dependencies = [
     "dvc>=3.63.0",
@@ -20,8 +30,27 @@ dependencies = [
     "evaluate",
     "scikit-learn",
     "seqeval>=1.2.2",
+    # Web app dependencies
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "gradio>=4.0.0",
+    # ONNX and deployment dependencies
+    "onnx>=1.15.0",
+    "onnxruntime>=1.16.0",
+    "onnxruntime-tools>=1.7.0",
+    "onnxconverter-common>=1.14.0",
+    # Testing dependencies
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
 ]
+
+[project.scripts]
+invoice-ner-app = "app:main"
+invoice-ner-preprocess = "scripts.preprocess:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.uv]
 required-environments = ["sys_platform == 'darwin'"]
-
