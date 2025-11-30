@@ -557,9 +557,7 @@ def gradio_predict(image, text_file):
 
             # Count predicted invoice number words
             predicted_count = sum(
-                1
-                for label in result["labels"]
-                if label.startswith("LABEL_1") or label.startswith("LABEL_2")
+                1 for label in result["labels"] if label.startswith("LABEL_1")
             )
 
             detailed_output = f"## 📊 Extraction Method: {extraction_method}\n\n"
