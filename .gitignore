@@ -8,3 +8,4 @@ data/SROIE2019/
 **.zip
 **.log
 **/checkpoint-*/
+.env
