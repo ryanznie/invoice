@@ -15,9 +15,10 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from transformers import LayoutLMv3Processor, LayoutLMv3ForTokenClassification
 from peft import PeftModel
-
-# Import preprocessing functions from scripts package
 from scripts import split_invoice_string, estimate_word_boxes
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(
@@ -31,11 +32,23 @@ logger = logging.getLogger(__name__)
 # CONFIGURATION
 # ============================================================================
 
-MODEL_PATH = "models/layoutlmv3-lora-invoice-number"
-BASE_MODEL = "microsoft/layoutlmv3-base"
-MAX_LENGTH = 512
-NUM_LABELS = 3
-DEVICE = "mps" if torch.backends.mps.is_available() else "cpu"
+# Load configuration from environment variables with defaults
+MODEL_PATH = os.getenv("MODEL_PATH", "models/layoutlmv3-lora-invoice-number")
+BASE_MODEL = os.getenv("BASE_MODEL", "microsoft/layoutlmv3-base")
+MAX_LENGTH = int(os.getenv("MAX_LENGTH", "512"))
+NUM_LABELS = int(os.getenv("NUM_LABELS", "3"))
+
+# Device selection: environment variable > MPS > CPU
+device_env = os.getenv("DEVICE", "").lower()
+if device_env in ["cpu", "cuda", "mps"]:
+    DEVICE = device_env
+    logger.debug(f"Using device from DEVICE env var: {DEVICE}")
+elif torch.backends.mps.is_available():
+    DEVICE = "mps"
+    logger.debug("DEVICE env var not set, auto-detected MPS")
+else:
+    DEVICE = "cpu"
+    logger.debug("DEVICE env var not set, defaulting to CPU")
 
 # Global model and processor
 model = None
@@ -765,7 +778,16 @@ if __name__ == "__main__":
         "--debug", action="store_true", help="Run in debug mode with auto-reload"
     )
     parser.add_argument(
-        "--port", type=int, default=7860, help="Port to run on (default: 7860)"
+        "--port",
+        type=int,
+        default=int(os.getenv("PORT", "7860")),
+        help="Port to run on (default: from PORT env or 7860)",
+    )
+    parser.add_argument(
+        "--host",
+        type=str,
+        default=os.getenv("HOST", "0.0.0.0"),
+        help="Host to bind to (default: from HOST env or 0.0.0.0)",
     )
     args = parser.parse_args()
 
@@ -779,12 +801,14 @@ if __name__ == "__main__":
         print("🐛 DEBUG MODE - Auto-reload enabled")
     print("=" * 60)
     print(f"📱 Device: {DEVICE}")
-    print(f"🌐 Open your browser to: http://localhost:{args.port}")
+    print(f"🔧 Model: {MODEL_PATH}")
+    print(f"🌐 Open your browser to: http://{args.host}:{args.port}")
+    print(f"📊 Log Level: {os.getenv('LOG_LEVEL', 'INFO')}")
     print("=" * 60 + "\n")
 
     uvicorn.run(
         "app:app" if args.debug else app,
-        host="0.0.0.0",
+        host=args.host,
         port=args.port,
         reload=args.debug,
         log_level="debug" if args.debug else "info",
