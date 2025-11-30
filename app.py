@@ -3,6 +3,7 @@ FastAPI + Gradio app for Invoice NER model testing
 Accepts: Image + Text file (JSON with words and bboxes)
 """
 
+import os
 import json
 import torch
 import logging
@@ -20,7 +21,8 @@ from scripts import split_invoice_string, estimate_word_boxes
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -248,6 +250,9 @@ def parse_ocr_text_file(file_path: str) -> Dict:
     # Sort by y then x coordinate to ensure reading order
     ocr_entries.sort(key=lambda e: (e["bbox"][1], e["bbox"][0]))
 
+    # Keep original lines for heuristic search
+    ocr_lines = [entry["text"] for entry in ocr_entries]
+
     # Split multi-word lines and estimate word boxes
     words = []
     boxes = []
@@ -267,7 +272,7 @@ def parse_ocr_text_file(file_path: str) -> Dict:
             words.append(token)
             boxes.append(token_bbox)
 
-    return {"words": words, "bboxes": boxes}
+    return {"words": words, "bboxes": boxes, "ocr_lines": ocr_lines}
 
 
 def normalize_boxes(
@@ -296,13 +301,14 @@ def normalize_boxes(
     return normalized
 
 
-def extract_invoice_heuristics(words: List[str]) -> tuple:
+def extract_invoice_heuristics(words: List[str], ocr_lines: List[str] = None) -> tuple:
     """
     Apply heuristic patterns to extract invoice numbers from OCR text.
     Based on patterns from notebooks/01_heuristics.ipynb
 
     Args:
         words: List of OCR words
+        ocr_lines: Optional list of original OCR text lines (before word splitting)
 
     Returns:
         Tuple of (invoice_number, matched_word_indices) or (None, [])
@@ -311,9 +317,16 @@ def extract_invoice_heuristics(words: List[str]) -> tuple:
 
     logger.info(f"🎯 Starting heuristic extraction on {len(words)} words")
 
-    # Join words to create searchable text
-    text = " ".join(words)
-    logger.debug(f"Text to search (first 200 chars): {text[:200]}...")
+    # If we have original OCR lines, search those first (more accurate)
+    # Otherwise fall back to joining words
+    if ocr_lines:
+        logger.debug(f"Searching {len(ocr_lines)} OCR lines")
+        text = "\n".join(ocr_lines)
+    else:
+        logger.debug("No OCR lines provided, joining words")
+        text = " ".join(words)
+
+    logger.debug(f"Text to search (first 1000 chars): {text[:1000]}...")
 
     # Define heuristic patterns (ordered by specificity)
     patterns = [
@@ -359,19 +372,25 @@ def extract_invoice_heuristics(words: List[str]) -> tuple:
                     f"⚠ Multiple values detected, taking first: '{original}' → '{extracted}'"
                 )
 
-            # Find which words are part of the extracted invoice number
+            # Find the position of the extracted invoice number in the text
+            # Since heuristics are accurate, we just need to find where it appears
             matched_indices = []
-            extracted_words = extracted.split()
+            match_start = match.start(1)  # Start position of captured group
+            match_end = match.end(1)  # End position of captured group
+
+            # Find which words fall within the matched text range
+            current_pos = 0
             for i, word in enumerate(words):
-                # Check if this word is part of the extracted invoice number
-                for ext_word in extracted_words:
-                    if (
-                        ext_word.lower() in word.lower()
-                        or word.lower() in ext_word.lower()
-                    ):
-                        if i not in matched_indices:
-                            matched_indices.append(i)
-                            break
+                word_start = text.find(word, current_pos)
+                word_end = word_start + len(word)
+
+                # Check if this word overlaps with the matched invoice number
+                if word_start < match_end and word_end > match_start:
+                    matched_indices.append(i)
+
+                current_pos = word_end
+                if current_pos >= match_end:
+                    break
 
             logger.info(
                 f"✅ Heuristic extraction successful: '{extracted}' (matched word indices: {matched_indices})"
@@ -473,11 +492,13 @@ def gradio_predict(image, text_file):
             # Extract words and boxes
             words = ocr_data.get("words", [])
             boxes = ocr_data.get("bboxes", ocr_data.get("boxes", []))
+            ocr_lines = ocr_data.get("ocr_lines", None)  # May not be present in JSON
         else:
             # Parse text file format
             ocr_data = parse_ocr_text_file(file_path)
             words = ocr_data["words"]
             boxes = ocr_data["bboxes"]
+            ocr_lines = ocr_data.get("ocr_lines", None)
 
             # Normalize boxes to 0-1000 range
             boxes = normalize_boxes(boxes, img_width, img_height)
@@ -492,10 +513,12 @@ def gradio_predict(image, text_file):
         logger.info("=" * 60)
         logger.info("Starting invoice extraction pipeline")
         logger.info(f"Total words: {len(words)}, Total boxes: {len(boxes)}")
+        if ocr_lines:
+            logger.info(f"OCR lines available: {len(ocr_lines)}")
         logger.info("=" * 60)
 
-        # Step 1: Try heuristics first
-        invoice_number, matched_indices = extract_invoice_heuristics(words)
+        # Step 1: Try heuristics first (with original OCR lines if available)
+        invoice_number, matched_indices = extract_invoice_heuristics(words, ocr_lines)
 
         if invoice_number:
             # Heuristic found a match
