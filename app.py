@@ -329,6 +329,7 @@ def extract_invoice_heuristics(words: List[str], ocr_lines: List[str] = None) ->
     logger.debug(f"Text to search (first 1000 chars): {text[:1000]}...")
 
     # Define heuristic patterns (ordered by specificity)
+    # TODO: Put all the heuristics in a separate file and import it into app.py
     patterns = [
         (r"INV#\s*:?\s*([A-Za-z0-9/\-]+)", "INV#"),
         (r"INV:\s*([^\s]+)", "INV:"),
