@@ -1,0 +1,71 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+*.ipynb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# DVC
+.dvc/
+*.dvc
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Documentation
+docs/
+*.md
+# Include README.md for build
+!README.md
+
+# Data (will be mounted as volume)
+data/
+!data/.gitignore
+
+# Models (will be mounted as volume or downloaded)
+# Keep the model directory structure but exclude large files
+models/**/*.bin
+models/**/*.safetensors
+models/**/*.onnx
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# CI/CD
+.github/
+.pre-commit-config.yaml
+
+# Misc
+setup.sh
