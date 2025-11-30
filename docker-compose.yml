@@ -7,32 +7,34 @@ services:
       dockerfile: Dockerfile
     container_name: invoice-ner-app
     ports:
-      - "7860:7860"
+      - "${PORT:-7860}:7860"
     volumes:
       # Mount models directory to persist downloaded models
-      - ./models:/app/models
+      - ${MODELS_DIR:-./models}:/app/models
       # Mount data directory for testing
-      - ./data:/app/data
+      - ${DATA_DIR:-./data}:/app/data
+    env_file:
+      - .env
     environment:
       - PYTHONUNBUFFERED=1
-      - DEVICE=cpu
-      - LOG_LEVEL=info
+      - DEVICE=${DEVICE:-cpu}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7860/health"]
       interval: 30s
-      timeout: 10s
+      timeout: ${TIMEOUT:-10}s
       retries: 3
       start_period: 60s
-    # Resource limits (adjust based on your needs)
+    # Resource limits (adjust in .env file)
     deploy:
       resources:
         limits:
-          cpus: '4'
-          memory: 8G
+          cpus: '${DOCKER_CPU_LIMIT:-4}'
+          memory: ${DOCKER_MEMORY_LIMIT:-8G}
         reservations:
-          cpus: '2'
-          memory: 4G
+          cpus: '${DOCKER_CPU_RESERVATION:-2}'
+          memory: ${DOCKER_MEMORY_RESERVATION:-4G}
 
 networks:
   default:

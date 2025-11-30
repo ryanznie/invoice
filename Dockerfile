@@ -32,6 +32,7 @@ RUN uv pip install --system --no-cache \
     fastapi \
     uvicorn[standard] \
     gradio \
+    python-dotenv \
     pillow \
     pandas \
     tqdm \
