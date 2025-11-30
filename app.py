@@ -5,6 +5,7 @@ Accepts: Image + Text file (JSON with words and bboxes)
 
 import json
 import torch
+import logging
 from PIL import Image
 from typing import List, Dict
 from contextlib import asynccontextmanager
@@ -16,6 +17,12 @@ from peft import PeftModel
 
 # Import preprocessing functions from scripts package
 from scripts import split_invoice_string, estimate_word_boxes
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -289,6 +296,147 @@ def normalize_boxes(
     return normalized
 
 
+def extract_invoice_heuristics(words: List[str]) -> tuple:
+    """
+    Apply heuristic patterns to extract invoice numbers from OCR text.
+    Based on patterns from notebooks/01_heuristics.ipynb
+
+    Args:
+        words: List of OCR words
+
+    Returns:
+        Tuple of (invoice_number, matched_word_indices) or (None, [])
+    """
+    import re
+
+    logger.info(f"🎯 Starting heuristic extraction on {len(words)} words")
+
+    # Join words to create searchable text
+    text = " ".join(words)
+    logger.debug(f"Text to search (first 200 chars): {text[:200]}...")
+
+    # Define heuristic patterns (ordered by specificity)
+    patterns = [
+        (r"INV#\s*:?\s*([A-Za-z0-9/\-]+)", "INV#"),
+        (r"INV:\s*([^\s]+)", "INV:"),
+        (r"INV-NO\.\s*([^\s]+)", "INV-NO"),
+        (r"INV\s*NO\.?\s*[:\-]?\s*([A-Za-z0-9/\-]+)", "INV NO"),
+        (r"INVOICE\s*NO\s*[:\-]?\s*([A-Za-z0-9/\-_]+)", "INVOICE NO"),
+        (r"INVOICE\s*#\s*:?[\s]*([A-Za-z0-9/\-]+)", "INVOICE#"),
+        (r"SLIP\s*(?:NO\.?|NUMBER)?\s*[^A-Za-z0-9]*\s*([A-Za-z0-9/\-]+)", "SLIP"),
+        (r"RECEIPT\s*NO\s*[:\-]?\s*([A-Za-z0-9/\-]+)", "RECEIPT NO"),
+        (r"BILL\s*NO\s*[:\-]?\s*([A-Za-z0-9/\-]+)", "BILL NO"),
+        (r"CB#\s*:\s*([A-Za-z0-9/\-]+)", "CB#"),
+        (r"C/N\s*NO\s*[:\-]?\s*([A-Za-z0-9/\-]+)", "C/N NO"),
+        (r"TRANSACTION\s*NO\s*[:\-]?\s*([A-Za-z0-9/\-]+)", "TRANSACTION NO"),
+        (r"TRN\s*[:\-]?\s*([A-Za-z0-9/\-]+)", "TRN"),
+        (r"RCPT#\s*:\s*([A-Za-z0-9]+)", "RCPT"),
+    ]
+
+    # Try each pattern
+    for pattern, name in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            extracted = match.group(1)
+            logger.info(f"✓ Pattern '{name}' matched: '{extracted}'")
+
+            # Validation rules from notebook:
+            # 1. Must be > 3 characters
+            if len(extracted) <= 3:
+                logger.warning(f"✗ Rejected '{extracted}': too short (<= 3 chars)")
+                continue
+
+            # 2. Must contain at least one digit
+            if not re.search(r"\d", extracted):
+                logger.warning(f"✗ Rejected '{extracted}': no digits found")
+                continue
+
+            # 3. Should not contain multiple comma-separated values
+            if "," in extracted:
+                original = extracted
+                extracted = extracted.split(",")[0]
+                logger.info(
+                    f"⚠ Multiple values detected, taking first: '{original}' → '{extracted}'"
+                )
+
+            # Find which words are part of the extracted invoice number
+            matched_indices = []
+            extracted_words = extracted.split()
+            for i, word in enumerate(words):
+                # Check if this word is part of the extracted invoice number
+                for ext_word in extracted_words:
+                    if (
+                        ext_word.lower() in word.lower()
+                        or word.lower() in ext_word.lower()
+                    ):
+                        if i not in matched_indices:
+                            matched_indices.append(i)
+                            break
+
+            logger.info(
+                f"✅ Heuristic extraction successful: '{extracted}' (matched word indices: {matched_indices})"
+            )
+            return extracted, matched_indices
+
+    logger.info("❌ No heuristic patterns matched")
+    return None, []
+
+
+def postprocess_invoice_number(invoice_number: str) -> str:
+    """
+    Apply postprocessing rules to clean up extracted invoice numbers.
+    Based on patterns from notebooks/04_postprocess.ipynb
+
+    Args:
+        invoice_number: Raw extracted invoice number
+
+    Returns:
+        Cleaned invoice number
+    """
+    if not invoice_number:
+        return invoice_number
+
+    logger.info(f"✨ Starting postprocessing: '{invoice_number}'")
+    original = invoice_number
+
+    # Remove colons and strip
+    if ":" in invoice_number:
+        invoice_number = invoice_number.replace(":", "").strip()
+        logger.info(f"  → Removed colons: '{invoice_number}'")
+
+    # Replace ' - ' with '-'
+    if " - " in invoice_number:
+        invoice_number = invoice_number.replace(" - ", "-")
+        logger.info(f"  → Normalized dashes: '{invoice_number}'")
+
+    # Replace ' / ' with '/'
+    if " / " in invoice_number:
+        invoice_number = invoice_number.replace(" / ", "/")
+        logger.info(f"  → Normalized slashes: '{invoice_number}'")
+
+    # Replace 'SP NULL' with 'SP-NULL'
+    if "SP NULL" in invoice_number:
+        invoice_number = invoice_number.replace("SP NULL", "SP-NULL")
+        logger.info(f"  → Fixed SP NULL: '{invoice_number}'")
+
+    # If contains SP-NULL, only take first 24 characters
+    if "SP-NULL" in invoice_number and len(invoice_number) > 24:
+        invoice_number = invoice_number[:24]
+        logger.info(f"  → Truncated SP-NULL to 24 chars: '{invoice_number}'")
+
+    # Remove 'DATE' suffix if present
+    if invoice_number.endswith("DATE"):
+        invoice_number = invoice_number[:-4].strip()
+        logger.info(f"  → Removed DATE suffix: '{invoice_number}'")
+
+    if original != invoice_number:
+        logger.info(f"✅ Postprocessing complete: '{original}' → '{invoice_number}'")
+    else:
+        logger.info("✅ Postprocessing complete: no changes needed")
+
+    return invoice_number
+
+
 def gradio_predict(image, text_file):
     """
     Gradio prediction function
@@ -341,29 +489,102 @@ def gradio_predict(image, text_file):
                 "",
             )
 
-        # Run prediction
-        result = predict_invoice(image, words, boxes)
+        logger.info("=" * 60)
+        logger.info("Starting invoice extraction pipeline")
+        logger.info(f"Total words: {len(words)}, Total boxes: {len(boxes)}")
+        logger.info("=" * 60)
 
-        # Extract invoice number for separate display
-        invoice_number = result["invoice_number"] or "Not Found"
+        # Step 1: Try heuristics first
+        invoice_number, matched_indices = extract_invoice_heuristics(words)
 
-        # Create annotated image
-        annotated_image = create_annotated_image(image, words, boxes, result["labels"])
+        if invoice_number:
+            # Heuristic found a match
+            extraction_method = "🎯 Heuristic"
+            logger.info(f"Using heuristic extraction result: '{invoice_number}'")
+            # Create labels for visualization (green boxes for matched words)
+            labels = [
+                "HEURISTIC_MATCH" if i in matched_indices else "LABEL_0"
+                for i in range(len(words))
+            ]
+            result = {
+                "words": words,
+                "labels": labels,
+                "confidence_scores": [1.0] * len(words),
+                "matched_indices": matched_indices,
+            }
+        else:
+            # Step 2: Fall back to model
+            extraction_method = "🤖 Model"
+            logger.info("🤖 Falling back to LayoutLMv3 model inference")
+            result = predict_invoice(image, words, boxes)
+            invoice_number = result["invoice_number"]
+            logger.info(f"Model extracted: '{invoice_number}'")
 
-        # Format detailed results with word-level predictions
-        detailed_output = "## 📋 Word-level Predictions\n\n"
-        detailed_output += "| Word | Label | Confidence |\n"
-        detailed_output += "|------|-------|------------|\n"
+            # Step 3: Apply postprocessing to model results
+            if invoice_number:
+                invoice_number = postprocess_invoice_number(invoice_number)
 
-        for word, label, conf in zip(
-            result["words"], result["labels"], result["confidence_scores"]
-        ):
-            emoji = (
-                "🟢"
-                if label.startswith("LABEL_1") or label.startswith("LABEL_2")
-                else "⚪"
+        # Final display
+        invoice_number = invoice_number or "Not Found"
+        logger.info("=" * 60)
+        logger.info(f"FINAL RESULT: '{invoice_number}' (via {extraction_method})")
+        logger.info("=" * 60)
+
+        # Create annotated image and detailed output
+        if extraction_method == "🎯 Heuristic":
+            # Heuristic extraction - show green boxes for matched words
+            annotated_image = create_annotated_image(
+                image, words, boxes, result["labels"]
             )
-            detailed_output += f"| {emoji} {word} | `{label}` | {conf:.3f} |\n"
+            detailed_output = f"## 📊 Extraction Method: {extraction_method}\n\n"
+            detailed_output += (
+                "Invoice number extracted using **pattern matching heuristics**.\n\n"
+            )
+            detailed_output += "✨ Fast extraction without model inference.\n\n"
+            detailed_output += f"🔴 **{len(result['matched_indices'])} word(s)** matched the heuristic pattern.\n"
+
+            # Warning if multiple words matched
+            if len(result["matched_indices"]) >= 2:
+                detailed_output += "\n⚠️ **WARNING**: Multiple words detected. Please inspect carefully to ensure accuracy.\n"
+                logger.warning(
+                    f"Multiple words ({len(result['matched_indices'])}) matched heuristic pattern"
+                )
+        else:
+            # Model extraction - show annotations and predictions
+            annotated_image = create_annotated_image(
+                image, words, boxes, result["labels"]
+            )
+
+            # Count predicted invoice number words
+            predicted_count = sum(
+                1
+                for label in result["labels"]
+                if label.startswith("LABEL_1") or label.startswith("LABEL_2")
+            )
+
+            detailed_output = f"## 📊 Extraction Method: {extraction_method}\n\n"
+            detailed_output += "Invoice number extracted using LayoutLMv3 model.\n\n"
+
+            # Warning if multiple predictions
+            if predicted_count >= 2:
+                detailed_output += "⚠️ **WARNING**: Multiple words predicted as invoice number. Please inspect carefully to ensure accuracy.\n\n"
+                logger.warning(
+                    f"Multiple words ({predicted_count}) predicted as invoice number by model"
+                )
+
+            detailed_output += "### 📋 Word-level Predictions\n\n"
+            detailed_output += "| Word | Label | Confidence |\n"
+            detailed_output += "|------|-------|------------|\n"
+
+            for word, label, conf in zip(
+                result["words"], result["labels"], result["confidence_scores"]
+            ):
+                emoji = (
+                    "🟢"
+                    if label.startswith("LABEL_1") or label.startswith("LABEL_2")
+                    else "⚪"
+                )
+                detailed_output += f"| {emoji} {word} | `{label}` | {conf:.3f} |\n"
 
         return invoice_number, annotated_image, detailed_output
 
@@ -379,7 +600,7 @@ def create_annotated_image(image, words, boxes, labels):
         image: PIL Image
         words: List of words
         boxes: List of bounding boxes
-        labels: List of predicted labels
+        labels: List of predicted labels (may be shorter than words/boxes)
 
     Returns:
         Annotated PIL Image
@@ -391,20 +612,33 @@ def create_annotated_image(image, words, boxes, labels):
     draw = ImageDraw.Draw(img)
 
     # Get image dimensions
-    width, height = img.size
+    img_width, img_height = img.size
 
-    for word, box, label in zip(words, boxes, labels):
+    # Handle case where labels list is shorter (e.g., heuristic extraction)
+    num_to_annotate = min(len(words), len(boxes), len(labels))
+
+    for i in range(num_to_annotate):
+        # word = words[i]
+        box = boxes[i]
+        label = labels[i]
+
         # Denormalize coordinates (boxes are in 0-1000 range)
-        x0 = int(box[0] * width / 1000)
-        y0 = int(box[1] * height / 1000)
-        x1 = int(box[2] * width / 1000)
-        y1 = int(box[3] * height / 1000)
+        x0 = int(box[0] * img_width / 1000)
+        y0 = int(box[1] * img_height / 1000)
+        x1 = int(box[2] * img_width / 1000)
+        y1 = int(box[3] * img_height / 1000)
 
         # Choose color based on label
-        if label.startswith("LABEL_1") or label.startswith("LABEL_2"):
+        if (
+            label == "HEURISTIC_MATCH"
+            or label.startswith("LABEL_1")
+            or label.startswith("LABEL_2")
+        ):
+            # Red for both heuristic matches and model predictions
             color = "red"
             width_box = 3
         else:
+            # Light blue for other words
             color = "lightblue"
             width_box = 1
 
@@ -428,7 +662,14 @@ with gr.Blocks(title="Invoice NER Demo") as demo:
            - **JSON file (.json)**: With `words` and `bboxes` fields
         3. Click "Extract Invoice Number"
         
-        The model will highlight detected invoice numbers in **red** and other text in **light blue**.
+        **Hybrid Extraction:**
+        - 🎯 **Heuristics First**: Tries pattern matching (e.g., "INV#", "INVOICE NO") for fast extraction
+        - 🤖 **Model Fallback**: Uses LayoutLMv3 if no heuristic matches
+        - ✨ **Postprocessing**: Cleans up results (removes extra spaces, colons, etc.)
+        
+        **Color Coding:**
+        - 🔴 **Red**: Detected invoice numbers (heuristic or model)
+        - 🔵 **Light Blue**: Other text
         """
     )
 
