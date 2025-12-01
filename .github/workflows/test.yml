@@ -32,12 +32,12 @@ jobs:
       run: |
         uv venv
         source .venv/bin/activate
-        uv pip install -e .
+        uv pip install pytest pytest-cov torch transformers datasets peft accelerate evaluate scikit-learn seqeval fastapi uvicorn gradio python-dotenv pillow
     
     - name: Run tests with pytest
       run: |
         source .venv/bin/activate
-        pytest --cov=app --cov=scripts --cov-report=term-missing --cov-report=json -v
+        pytest --cov=app --cov=scripts --cov-report=term-missing --cov-report=json --cov-report=html -v
     
     - name: Coverage comment
       if: github.event_name == 'pull_request' && matrix.python-version == '3.10'
@@ -76,10 +76,9 @@ jobs:
       run: |
         uv venv
         source .venv/bin/activate
-        uv pip install -e .
+        uv pip install ruff
     
     - name: Check code formatting with ruff
       run: |
         source .venv/bin/activate
-        pip install ruff
         ruff check app.py scripts/ tests/
