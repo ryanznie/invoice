@@ -36,7 +36,15 @@ invoice-ner/
 │   └── train.py
 │
 ├── docs/                       # Additional documentation
-│   └── DEV_SETUP.md            # Developer setup guide
+│   ├── DEV_SETUP.md            # Developer setup guide
+│   └── TESTING.md              # Testing guide and validation
+│
+├── tests/                      # Test suite
+│   ├── conftest.py             # Shared test fixtures
+│   ├── test_app.py             # Application tests
+│   ├── test_scripts.py         # Script tests
+│   ├── test_api.py             # API endpoint tests
+│   └── README.md               # Testing documentation
 │
 ├── LICENSE                     # MIT License
 └── README.md                   # This file                   
@@ -48,7 +56,8 @@ invoice-ner/
 - **`models/`** - Stores fine-tuned LoRA adapters and exported ONNX models for deployment
 - **`notebooks/`** - Jupyter notebooks for experimentation, analysis, and prototyping
 - **`scripts/`** - Utility scripts for data preprocessing, model export, and deployment preparation
-- **`docs/`** - Additional documentation for ONNX export and model variants
+- **`tests/`** - Comprehensive test suite with 107 tests for production validation
+- **`docs/`** - Additional documentation for development, testing, and deployment
 
 ## 🚀 Quick Start
 
@@ -238,7 +247,7 @@ Once running, visit:
 
 ## 🛠️ Development
 
-For development setup, data labeling, and model training, see [docs/DEV_SETUP.md](docs/DEV_SETUP.md).
+For development setup, data labeling, and model training, see [docs/DEV_SETUP.md](docs/DEV_SETUP.md). For detailed testing documentation, see [docs/TESTING.md](docs/TESTING.md).
 
 ## 📄 License
 
