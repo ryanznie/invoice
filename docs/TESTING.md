@@ -58,11 +58,9 @@ pytest -k "normalize"              # Run normalization tests
 
 ## CI/CD Integration
 
-```yaml
-# GitHub Actions example
-- name: Run tests
-  run: pytest --cov=app --cov=scripts --cov-report=xml
-```
+Tests run automatically on every push and pull request via GitHub Actions.
+
+See `.github/workflows/ci.yml` for the full configuration.
 
 ## Troubleshooting
 
