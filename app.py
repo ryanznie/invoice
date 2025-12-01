@@ -99,13 +99,58 @@ def predict_invoice(
 
     Returns:
         Dictionary with predictions and invoice number
+
+    Raises:
+        ValueError: If model not loaded, inputs are invalid, or dimensions mismatch
+        TypeError: If inputs have incorrect types
     """
+    # Validate model loaded
     if model is None or processor is None:
         raise ValueError("Model not loaded. Call load_model() first.")
 
-    # Validate inputs
+    # Validate image
+    if not isinstance(image, Image.Image):
+        raise TypeError(f"Expected PIL.Image.Image, got {type(image).__name__}")
+
+    if image.size[0] == 0 or image.size[1] == 0:
+        raise ValueError(f"Invalid image dimensions: {image.size}")
+
+    # Validate words
+    if not isinstance(words, list):
+        raise TypeError(f"Expected list for words, got {type(words).__name__}")
+
+    if not words:
+        raise ValueError("Words list cannot be empty")
+
+    if not all(isinstance(w, str) for w in words):
+        raise TypeError("All words must be strings")
+
+    # Validate boxes
+    if not isinstance(boxes, list):
+        raise TypeError(f"Expected list for boxes, got {type(boxes).__name__}")
+
     if len(words) != len(boxes):
         raise ValueError(f"Mismatch: {len(words)} words but {len(boxes)} boxes")
+
+    # Validate box format
+    for i, box in enumerate(boxes):
+        if not isinstance(box, list) or len(box) != 4:
+            raise ValueError(f"Box {i} must be a list of 4 integers, got {box}")
+
+        if not all(isinstance(coord, (int, float)) for coord in box):
+            raise TypeError(f"Box {i} coordinates must be numeric, got {box}")
+
+        # Validate normalized coordinates (0-1000 range)
+        if not all(0 <= coord <= 1000 for coord in box):
+            raise ValueError(
+                f"Box {i} coordinates must be in range [0, 1000], got {box}"
+            )
+
+        # Validate box geometry (x0 < x1, y0 < y1)
+        if box[0] >= box[2] or box[1] >= box[3]:
+            raise ValueError(
+                f"Box {i} has invalid geometry (x0={box[0]}, y0={box[1]}, x1={box[2]}, y1={box[3]}). Expected x0<x1 and y0<y1"
+            )
 
     # Process inputs
     encoding = processor(
@@ -238,7 +283,22 @@ def parse_ocr_text_file(file_path: str) -> Dict:
 
     Returns:
         Dictionary with words and bboxes
+
+    Raises:
+        ValueError: If file is empty or has invalid format
+        FileNotFoundError: If file does not exist
     """
+    # Validate file path
+    if not isinstance(file_path, str):
+        raise TypeError(
+            f"Expected string for file_path, got {type(file_path).__name__}"
+        )
+
+    if not file_path:
+        raise ValueError("File path cannot be empty")
+
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"File not found: {file_path}")
     ocr_entries = []
 
     # Parse file into entries
@@ -300,16 +360,67 @@ def normalize_boxes(
         image_height: Image height in pixels
 
     Returns:
-        List of normalized boxes
+        List of normalized boxes (clamped to [0, 1000])
+
+    Raises:
+        ValueError: If image dimensions are invalid or boxes are malformed
+        TypeError: If inputs have incorrect types
     """
+    # Validate inputs
+    if not isinstance(boxes, list):
+        raise TypeError(f"Expected list for boxes, got {type(boxes).__name__}")
+
+    if not isinstance(image_width, (int, float)) or not isinstance(
+        image_height, (int, float)
+    ):
+        raise TypeError("Image dimensions must be numeric")
+
+    if image_width <= 0 or image_height <= 0:
+        raise ValueError(
+            f"Invalid image dimensions: width={image_width}, height={image_height}"
+        )
+
+    if not boxes:
+        return []
     normalized = []
-    for box in boxes:
-        normalized_box = [
+    for i, box in enumerate(boxes):
+        # Calculate raw normalized values
+        raw_normalized = [
             int(box[0] * 1000 / image_width),
             int(box[1] * 1000 / image_height),
             int(box[2] * 1000 / image_width),
             int(box[3] * 1000 / image_height),
         ]
+
+        # Clamp to [0, 1000] range
+        normalized_box = [
+            max(0, min(1000, raw_normalized[0])),
+            max(0, min(1000, raw_normalized[1])),
+            max(0, min(1000, raw_normalized[2])),
+            max(0, min(1000, raw_normalized[3])),
+        ]
+
+        # Ensure valid geometry after clamping (x0 < x1, y0 < y1)
+        # If coordinates are equal after clamping, adjust to maintain minimum 1-pixel difference
+        if normalized_box[0] >= normalized_box[2]:
+            if normalized_box[2] < 1000:
+                normalized_box[2] = normalized_box[0] + 1
+            else:
+                normalized_box[0] = max(0, normalized_box[2] - 1)
+
+        if normalized_box[1] >= normalized_box[3]:
+            if normalized_box[3] < 1000:
+                normalized_box[3] = normalized_box[1] + 1
+            else:
+                normalized_box[1] = max(0, normalized_box[3] - 1)
+
+        # Log warning if clamping or adjustment occurred
+        if raw_normalized != normalized_box:
+            logger.warning(
+                f"Box {i} adjusted: pixel {box} -> raw normalized {raw_normalized} -> final {normalized_box} "
+                f"(image size: {image_width}x{image_height})"
+            )
+
         normalized.append(normalized_box)
     return normalized
 
@@ -325,7 +436,29 @@ def extract_invoice_heuristics(words: List[str], ocr_lines: List[str] = None) ->
 
     Returns:
         Tuple of (invoice_number, matched_word_indices) or (None, [])
+
+    Raises:
+        TypeError: If inputs have incorrect types
+        ValueError: If words list is empty
     """
+    # Validate inputs
+    if not isinstance(words, list):
+        raise TypeError(f"Expected list for words, got {type(words).__name__}")
+
+    if not words:
+        raise ValueError("Words list cannot be empty")
+
+    if not all(isinstance(w, str) for w in words):
+        raise TypeError("All words must be strings")
+
+    if ocr_lines is not None:
+        if not isinstance(ocr_lines, list):
+            raise TypeError(
+                f"Expected list for ocr_lines, got {type(ocr_lines).__name__}"
+            )
+
+        if not all(isinstance(line, str) for line in ocr_lines):
+            raise TypeError("All OCR lines must be strings")
     import re
 
     logger.info(f"🎯 Starting heuristic extraction on {len(words)} words")
@@ -425,7 +558,15 @@ def postprocess_invoice_number(invoice_number: str) -> str:
 
     Returns:
         Cleaned invoice number
+
+    Raises:
+        TypeError: If invoice_number is not a string
     """
+    # Validate input
+    if invoice_number is not None and not isinstance(invoice_number, str):
+        raise TypeError(
+            f"Expected string or None for invoice_number, got {type(invoice_number).__name__}"
+        )
     if not invoice_number:
         return invoice_number
 
@@ -507,6 +648,17 @@ def gradio_predict(image, text_file):
             words = ocr_data.get("words", [])
             boxes = ocr_data.get("bboxes", ocr_data.get("boxes", []))
             ocr_lines = ocr_data.get("ocr_lines", None)  # May not be present in JSON
+
+            # Check if boxes need normalization (if any coordinate > 1000, assume pixel coordinates)
+            needs_normalization = (
+                any(coord > 1000 for box in boxes for coord in box) if boxes else False
+            )
+
+            if needs_normalization:
+                logger.info(
+                    "Detected pixel coordinates in JSON, normalizing to 0-1000 range"
+                )
+                boxes = normalize_boxes(boxes, img_width, img_height)
         else:
             # Parse text file format
             ocr_data = parse_ocr_text_file(file_path)
@@ -639,7 +791,24 @@ def create_annotated_image(image, words, boxes, labels):
 
     Returns:
         Annotated PIL Image
+
+    Raises:
+        TypeError: If inputs have incorrect types
+        ValueError: If inputs are invalid
     """
+    # Validate inputs
+    if not isinstance(image, Image.Image):
+        raise TypeError(f"Expected PIL.Image.Image, got {type(image).__name__}")
+
+    if (
+        not isinstance(words, list)
+        or not isinstance(boxes, list)
+        or not isinstance(labels, list)
+    ):
+        raise TypeError("words, boxes, and labels must be lists")
+
+    if image.size[0] == 0 or image.size[1] == 0:
+        raise ValueError(f"Invalid image dimensions: {image.size}")
     from PIL import ImageDraw
 
     # Create a copy
