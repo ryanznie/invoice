@@ -9,3 +9,11 @@ data/SROIE2019/
 **.log
 **/checkpoint-*/
 .env
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
