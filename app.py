@@ -4,6 +4,8 @@ Accepts: Image + Text file (JSON with words and bboxes)
 """
 
 import os
+import io
+import re
 import json
 import torch
 import logging
@@ -11,7 +13,7 @@ from PIL import Image
 from typing import List, Dict
 from contextlib import asynccontextmanager
 import gradio as gr
-from fastapi import FastAPI
+from fastapi import FastAPI, File, UploadFile, HTTPException
 from pydantic import BaseModel
 from transformers import LayoutLMv3Processor, LayoutLMv3ForTokenClassification
 from peft import PeftModel
@@ -108,26 +110,14 @@ def predict_invoice(
     if model is None or processor is None:
         raise ValueError("Model not loaded. Call load_model() first.")
 
-    # Validate image
-    if not isinstance(image, Image.Image):
-        raise TypeError(f"Expected PIL.Image.Image, got {type(image).__name__}")
-
     if image.size[0] == 0 or image.size[1] == 0:
         raise ValueError(f"Invalid image dimensions: {image.size}")
-
-    # Validate words
-    if not isinstance(words, list):
-        raise TypeError(f"Expected list for words, got {type(words).__name__}")
 
     if not words:
         raise ValueError("Words list cannot be empty")
 
     if not all(isinstance(w, str) for w in words):
         raise TypeError("All words must be strings")
-
-    # Validate boxes
-    if not isinstance(boxes, list):
-        raise TypeError(f"Expected list for boxes, got {type(boxes).__name__}")
 
     if len(words) != len(boxes):
         raise ValueError(f"Mismatch: {len(words)} words but {len(boxes)} boxes")
@@ -258,6 +248,183 @@ async def health_check():
         "model_loaded": model is not None,
         "device": DEVICE,
     }
+
+
+@app.post("/predict")
+async def predict(
+    image: UploadFile = File(..., description="Invoice image file (JPG, PNG, etc.)"),
+    ocr_file: UploadFile = File(..., description="OCR data file (TXT or JSON format)"),
+):
+    """
+    Extract invoice number from an invoice image and OCR data
+
+    Args:
+        image: Invoice image file
+        ocr_file: OCR data file in either:
+            - Text format (.txt): x1,y1,x2,y2,x3,y3,x4,y4,text per line
+            - JSON format (.json): {"words": [...], "bboxes": [...]}
+
+    Returns:
+        JSON with extracted invoice number, method used, and detailed predictions
+    """
+    if model is None or processor is None:
+        raise HTTPException(status_code=503, detail="Model not loaded")
+
+    try:
+        # Read and validate image
+        image_bytes = await image.read()
+        try:
+            pil_image = Image.open(io.BytesIO(image_bytes))
+            pil_image = pil_image.convert("RGB")
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid image file: {str(e)}")
+
+        img_width, img_height = pil_image.size
+
+        # Read and parse OCR file
+        ocr_bytes = await ocr_file.read()
+        ocr_filename = ocr_file.filename.lower()
+
+        try:
+            if ocr_filename.endswith(".json"):
+                # Parse JSON file
+                ocr_data = json.loads(ocr_bytes.decode("utf-8"))
+                words = ocr_data.get("words", [])
+                boxes = ocr_data.get("bboxes", ocr_data.get("boxes", []))
+                ocr_lines = ocr_data.get("ocr_lines", None)
+
+                # Check if boxes need normalization
+                needs_normalization = (
+                    any(coord > 1000 for box in boxes for coord in box)
+                    if boxes
+                    else False
+                )
+                if needs_normalization:
+                    logger.info(
+                        "Detected pixel coordinates in JSON, normalizing to 0-1000 range"
+                    )
+                    boxes = normalize_boxes(boxes, img_width, img_height)
+
+            elif ocr_filename.endswith(".txt"):
+                # Parse text file - save to temp file for parse_ocr_text_file
+                import tempfile
+
+                with tempfile.NamedTemporaryFile(
+                    mode="w", suffix=".txt", delete=False, encoding="utf-8"
+                ) as tmp:
+                    tmp.write(ocr_bytes.decode("utf-8", errors="ignore"))
+                    tmp_path = tmp.name
+
+                try:
+                    ocr_data = parse_ocr_text_file(tmp_path)
+                    words = ocr_data["words"]
+                    boxes = ocr_data["bboxes"]
+                    ocr_lines = ocr_data.get("ocr_lines", None)
+
+                    # Normalize boxes to 0-1000 range
+                    boxes = normalize_boxes(boxes, img_width, img_height)
+                finally:
+                    # Clean up temp file
+                    os.unlink(tmp_path)
+            else:
+                raise HTTPException(
+                    status_code=400, detail="OCR file must be .txt or .json format"
+                )
+
+        except json.JSONDecodeError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid JSON file: {str(e)}")
+        except Exception as e:
+            raise HTTPException(
+                status_code=400, detail=f"Error parsing OCR file: {str(e)}"
+            )
+
+        if not words or not boxes:
+            raise HTTPException(
+                status_code=400, detail="OCR file must contain valid words and bboxes"
+            )
+
+        logger.info("=" * 60)
+        logger.info("API: Starting invoice extraction pipeline")
+        logger.info(f"Total words: {len(words)}, Total boxes: {len(boxes)}")
+        if ocr_lines:
+            logger.info(f"OCR lines available: {len(ocr_lines)}")
+        logger.info("=" * 60)
+
+        # Step 1: Try heuristics first
+        invoice_number, matched_indices = extract_invoice_heuristics(words, ocr_lines)
+
+        if invoice_number:
+            # Heuristic found a match
+            extraction_method = "heuristic"
+            logger.info(f"Using heuristic extraction result: '{invoice_number}'")
+            labels = [
+                "HEURISTIC_MATCH" if i in matched_indices else "LABEL_0"
+                for i in range(len(words))
+            ]
+            confidence_scores = [1.0] * len(words)
+        else:
+            # Step 2: Fall back to model
+            extraction_method = "model"
+            logger.info("🤖 Falling back to LayoutLMv3 model inference")
+            result = predict_invoice(pil_image, words, boxes)
+            invoice_number = result["invoice_number"]
+            labels = result["labels"]
+            confidence_scores = result["confidence_scores"]
+            logger.info(f"Model extracted: '{invoice_number}'")
+
+            # Step 3: Apply postprocessing to model results
+            if invoice_number:
+                invoice_number = postprocess_invoice_number(invoice_number)
+
+            # Step 4a: Validate model extraction - reject if contains semicolon
+            if invoice_number and ";" in invoice_number:
+                logger.warning(
+                    f"✗ Rejected model extraction '{invoice_number}': contains semicolon"
+                )
+                invoice_number = None
+
+            # Step 4b: Validate model extraction - must contain alphanumeric characters
+            if invoice_number and not re.search(r"[a-zA-Z0-9]", invoice_number):
+                logger.warning(
+                    f"✗ Rejected model extraction '{invoice_number}': no letters or numbers"
+                )
+                invoice_number = None
+
+        # Final result
+        invoice_number = invoice_number or "Not Found"
+        logger.info("=" * 60)
+        logger.info(f"API RESULT: '{invoice_number}' (via {extraction_method})")
+        logger.info("=" * 60)
+
+        # Build detailed predictions
+        predictions = []
+        for i, (word, label, conf) in enumerate(
+            zip(words[: len(labels)], labels, confidence_scores)
+        ):
+            predictions.append(
+                {
+                    "word": word,
+                    "label": label,
+                    "confidence": round(conf, 4),
+                    "is_invoice_number": label.startswith("LABEL_1")
+                    or label.startswith("LABEL_2")
+                    or label == "HEURISTIC_MATCH",
+                }
+            )
+
+        return {
+            "invoice_number": invoice_number,
+            "extraction_method": extraction_method,
+            "predictions": predictions,
+            "total_words": len(words),
+            "model_device": DEVICE,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error during prediction: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 # ============================================================================
@@ -459,7 +626,6 @@ def extract_invoice_heuristics(words: List[str], ocr_lines: List[str] = None) ->
 
         if not all(isinstance(line, str) for line in ocr_lines):
             raise TypeError("All OCR lines must be strings")
-    import re
 
     logger.info(f"🎯 Starting heuristic extraction on {len(words)} words")
 
@@ -518,6 +684,17 @@ def extract_invoice_heuristics(words: List[str], ocr_lines: List[str] = None) ->
                 logger.info(
                     f"⚠ Multiple values detected, taking first: '{original}' → '{extracted}'"
                 )
+
+            # 4. Should not be a date pattern (MM/DD/YYYY or DD/MM/YYYY)
+            # Check if it looks like a date with 2 slashes
+            if extracted.count("/") == 2:
+                # Pattern: digits/digits/digits (likely a date)
+                date_pattern = r"^\d{1,2}/\d{1,2}/\d{2,4}$"
+                if re.match(date_pattern, extracted):
+                    logger.warning(
+                        f"✗ Rejected '{extracted}': looks like a date (MM/DD/YYYY or DD/MM/YYYY)"
+                    )
+                    continue
 
             # Find the position of the extracted invoice number in the text
             # Since heuristics are accurate, we just need to find where it appears
