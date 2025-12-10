@@ -2,6 +2,16 @@
 
 Named Entity Recognition (NER) for invoice processing using LayoutLMv3 with LoRA fine-tuning. Extract invoice numbers and key information from invoice images.
 
+## ✨ Features
+
+- 🤖 **Hybrid Extraction Pipeline** - Combines fast heuristic pattern matching with deep learning fallback
+- 🎯 **LayoutLMv3 with LoRA** - Efficient fine-tuning on multimodal document understanding
+- 🌐 **Dual Interface** - REST API for programmatic access + Gradio UI for interactive use
+- 🚀 **Production Ready** - Comprehensive test suite (107 tests), Docker support, health checks
+- 📊 **Multi-Format Support** - Accepts TXT and JSON OCR data formats
+- 🔧 **Device Flexible** - Runs on CPU, CUDA (NVIDIA), or MPS (Apple Silicon)
+- 📝 **Interactive Docs** - Auto-generated Swagger/ReDoc API documentation
+
 ## 📂 Repository Structure
 
 ```
@@ -35,9 +45,20 @@ invoice-ner/
 │   ├── preprocess.py           # Data preprocessing utilities
 │   └── train.py
 │
+├── src/                        # Core application modules
+│   ├── __init__.py              # Package initialization
+│   ├── api.py                   # FastAPI endpoints
+│   ├── gradio_ui.py             # Gradio interface
+│   ├── inference.py             # Model inference logic
+│   ├── heuristics.py            # Pattern-based extraction
+│   ├── postprocessing.py        # Result postprocessing
+│   ├── validation.py            # Input validation
+│   └── utils.py                 # Utility functions
+│
 ├── docs/                       # Additional documentation
-│   ├── DEV_SETUP.md            # Developer setup guide
-│   └── TESTING.md              # Testing guide and validation
+│   ├── API_USAGE.md             # Complete API documentation and examples
+│   ├── DEV_SETUP.md             # Developer setup guide
+│   └── TESTING.md               # Testing guide and validation
 │
 ├── tests/                      # Test suite
 │   ├── conftest.py             # Shared test fixtures
@@ -52,12 +73,13 @@ invoice-ner/
 
 ### Key Directories
 
+- **`src/`** - Core application modules (API endpoints, inference, UI, validation, utilities)
 - **`data/`** - Contains the SROIE2019 dataset and Streamlit labeling tool for annotating invoice images
 - **`models/`** - Stores fine-tuned LoRA adapters and exported ONNX models for deployment
 - **`notebooks/`** - Jupyter notebooks for experimentation, analysis, and prototyping
 - **`scripts/`** - Utility scripts for data preprocessing, model export, and deployment preparation
 - **`tests/`** - Comprehensive test suite with 107 tests for production validation
-- **`docs/`** - Additional documentation for development, testing, and deployment
+- **`docs/`** - Documentation for API usage, development setup, testing, and deployment
 
 ## 🚀 Quick Start
 
@@ -129,6 +151,25 @@ curl http://localhost:7860/health
 # Expected response:
 # {"status": "healthy", "model_loaded": true, "device": "cpu"}
 ```
+
+### Quick API Test
+
+```bash
+# Extract invoice number from an invoice
+curl -X POST http://localhost:7860/predict \
+  -F "image=@path/to/invoice.jpg" \
+  -F "ocr_file=@path/to/ocr_data.json"
+
+# Response:
+# {
+#   "invoice_number": "INV-2023-001234",
+#   "extraction_method": "heuristic",
+#   "total_words": 127,
+#   "model_device": "cpu"
+# }
+```
+
+For detailed API documentation with code examples in Python, JavaScript, and more, see **[docs/API_USAGE.md](docs/API_USAGE.md)**.
 
 ## 🔧 Configuration
 
@@ -241,9 +282,23 @@ PORT=8080
 
 ## 📚 API Documentation
 
-Once running, visit:
-- **Interactive API docs**: http://localhost:7860/docs
+The application provides both a **Gradio web interface** and a **REST API**:
+
+### Web Interface (Gradio)
+- **URL**: http://localhost:7860/
+- **Features**: Drag-and-drop upload, visual preview, no coding required
+- **Best for**: Manual testing, demos, non-technical users
+
+### REST API
+- **Interactive docs**: http://localhost:7860/docs (Swagger UI)
+- **Alternative docs**: http://localhost:7860/redoc (ReDoc)
 - **Health check**: http://localhost:7860/health
+
+**Detailed API Guide**: See [docs/API_USAGE.md](docs/API_USAGE.md) for:
+- Complete endpoint documentation
+- Request/response formats
+- Code examples in Python, JavaScript, cURL
+- Error handling and best practices
 
 ## 🛠️ Development
 

@@ -9,11 +9,28 @@ from unittest.mock import patch, Mock
 
 @pytest.fixture
 def client():
-    """Create a test client for the FastAPI app"""
+    """Create a test client for the FastAPI app (API only, no Gradio)"""
     # Import here to avoid loading model during test collection
-    from app import app
+    from src import app
 
     return TestClient(app)
+
+
+@pytest.fixture
+def full_app_client():
+    """Create a test client for the full app with Gradio mounted"""
+    # Import the fully configured app from root app.py
+    import sys
+    from pathlib import Path
+
+    # Add parent directory to path if needed
+    repo_root = Path(__file__).parent.parent
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
+
+    import app as root_app
+
+    return TestClient(root_app.app)
 
 
 class TestHealthEndpoint:
@@ -21,7 +38,7 @@ class TestHealthEndpoint:
 
     def test_health_check_model_loaded(self, client):
         """Test health check when model is loaded"""
-        with patch("app.model", Mock()):
+        with patch("src.inference.model", Mock()):
             response = client.get("/health")
 
             assert response.status_code == 200
@@ -35,7 +52,7 @@ class TestHealthEndpoint:
 
     def test_health_check_model_not_loaded(self, client):
         """Test health check when model is not loaded"""
-        with patch("app.model", None):
+        with patch("src.inference.model", None):
             response = client.get("/health")
 
             assert response.status_code == 200
@@ -46,7 +63,7 @@ class TestHealthEndpoint:
 
     def test_health_check_device_info(self, client):
         """Test that device information is included"""
-        with patch("app.model", Mock()):
+        with patch("src.inference.model", Mock()):
             response = client.get("/health")
             data = response.json()
 
@@ -59,7 +76,7 @@ class TestPredictionRequest:
 
     def test_valid_prediction_request(self):
         """Test valid prediction request"""
-        from app import PredictionRequest
+        from src.api import PredictionRequest
 
         request = PredictionRequest(
             words=["INVOICE", "NO:", "12345"],
@@ -71,7 +88,7 @@ class TestPredictionRequest:
 
     def test_prediction_request_validation(self):
         """Test that Pydantic validates the request"""
-        from app import PredictionRequest
+        from src.api import PredictionRequest
         from pydantic import ValidationError
 
         # Test with invalid types
@@ -87,7 +104,7 @@ class TestGradioInterface:
 
     def test_gradio_predict_no_image(self):
         """Test gradio_predict with no image"""
-        from app import gradio_predict
+        from src import gradio_predict
 
         result = gradio_predict(None, None)
 
@@ -96,7 +113,7 @@ class TestGradioInterface:
 
     def test_gradio_predict_no_text_file(self):
         """Test gradio_predict with no text file"""
-        from app import gradio_predict
+        from src import gradio_predict
         from PIL import Image
         import numpy as np
 
@@ -106,11 +123,11 @@ class TestGradioInterface:
         assert "Please upload a text file" in result[0]
         assert result[1] is None
 
-    @patch("app.model", Mock())
-    @patch("app.processor", Mock())
+    @patch("src.inference.model", Mock())
+    @patch("src.inference.processor", Mock())
     def test_gradio_predict_with_json_file(self, temp_json_file):
         """Test gradio_predict with JSON file"""
-        from app import gradio_predict
+        from src import gradio_predict
         from PIL import Image
         import numpy as np
 
@@ -131,7 +148,7 @@ class TestGradioInterface:
 
     def test_gradio_predict_error_handling(self):
         """Test that gradio_predict handles errors gracefully"""
-        from app import gradio_predict
+        from src import gradio_predict
 
         # Pass invalid inputs
         result = gradio_predict("not an image", "not a file")
@@ -147,14 +164,14 @@ class TestIntegrationAPI:
 
     def test_health_endpoint_accessible(self, client):
         """Test that health endpoint is accessible"""
-        with patch("app.model", Mock()):
+        with patch("src.inference.model", Mock()):
             response = client.get("/health")
             assert response.status_code == 200
 
-    def test_root_endpoint_gradio(self, client):
+    def test_root_endpoint_gradio(self, full_app_client):
         """Test that root endpoint serves Gradio interface"""
-        with patch("app.model", Mock()):
-            response = client.get("/")
+        with patch("src.inference.model", Mock()):
+            response = full_app_client.get("/")
             # Gradio interface should be served
             assert response.status_code == 200
 
@@ -164,13 +181,13 @@ class TestErrorHandling:
 
     def test_invalid_endpoint(self, client):
         """Test accessing invalid endpoint"""
-        with patch("app.model", Mock()):
+        with patch("src.inference.model", Mock()):
             response = client.get("/invalid-endpoint")
             assert response.status_code == 404
 
     def test_health_check_always_responds(self, client):
         """Test that health check always responds even if model fails"""
-        with patch("app.model", None), patch("app.processor", None):
+        with patch("src.inference.model", None), patch("src.inference.processor", None):
             response = client.get("/health")
             # Should still return 200, but indicate unhealthy
             assert response.status_code == 200
