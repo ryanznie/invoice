@@ -63,3 +63,8 @@ only-include = [
 
 [tool.uv]
 required-environments = ["sys_platform == 'darwin'"]
+
+[tool.coverage.run]
+relative_files = true
+branch = true
+source = ["."]
