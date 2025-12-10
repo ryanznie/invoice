@@ -11,17 +11,28 @@ This Streamlit application is a tool for labeling and correcting text extracted 
 
 ## Directory Structure
 
-Before running the application, ensure your data is organized in the following structure within the `data/` directory:
+The `data/` directory is organized as follows:
 
 ```
-SROIE2019/
-└── train/
-    ├── img/      # Contains .jpg images
-    │   ├── X00016469612.jpg
-    │   └── ...
-    └── box/      # Contains .txt files with extracted text
-        ├── X00016469612.txt
-        └── ...
+data/
+├── app.py                    # Main Streamlit labeling application
+├── scripts/                  # Utility scripts for data processing
+│   ├── create_dataframe.py   # Creates DataFrame from labeled data
+│   └── validate_labels.py    # Validates label quality
+├── labels.json               # Training data labels
+├── test_labels.json          # Test data labels
+├── ambiguous_edits.log       # Log of ambiguous label edits
+└── SROIE2019/                # Invoice dataset
+    ├── train/
+    │   ├── img/              # Contains .jpg images
+    │   │   ├── X00016469612.jpg
+    │   │   └── ...
+    │   └── box/              # Contains .txt files with extracted text
+    │       ├── X00016469612.txt
+    │       └── ...
+    └── test/
+        ├── img/
+        └── box/
 ```
 
 You will need to download the [data](https://www.kaggle.com/datasets/urbikn/sroie-datasetv2?resource=download) and unpack in `data/`.

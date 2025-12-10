@@ -25,6 +25,9 @@ invoice-ner/
 │
 ├── data/                       # Dataset and labeling tools
 │   ├── app.py                  # Streamlit labeling application
+│   ├── scripts/                # Data processing utilities
+│   │   ├── create_dataframe.py # Creates DataFrame from labeled data
+│   │   └── validate_labels.py  # Validates label quality
 │   ├── SROIE2019/              # Invoice dataset (train/test images & OCR)
 │   ├── labels.json             # Training data labels
 │   └── test_labels.json        # Test data labels

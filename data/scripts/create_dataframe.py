@@ -2,19 +2,24 @@ import os
 import pandas as pd
 import json
 import logging
-from validate_labels import validate_label
+from .validate_labels import validate_label
 from tqdm import tqdm
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
-# Define paths relative to the project root
-base_path = "data/SROIE2019/train"
+# Get the directory containing this script (data/scripts/)
+script_dir = os.path.dirname(os.path.abspath(__file__))
+# Get the data directory (parent of scripts/)
+data_dir = os.path.dirname(script_dir)
+
+# Define paths relative to the data directory
+base_path = os.path.join(data_dir, "SROIE2019", "train")
 img_dir = os.path.join(base_path, "img")
 box_dir = os.path.join(base_path, "box")
 entities_dir = os.path.join(base_path, "entities")
-labels_json_path = "data/labels.json"
-output_path = "data/invoices.csv"
+labels_json_path = os.path.join(data_dir, "labels.json")
+output_path = os.path.join(data_dir, "invoices.csv")
 
 # Load labels from JSON
 with open(labels_json_path, "r", encoding="utf-8") as f:
