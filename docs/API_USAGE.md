@@ -33,15 +33,6 @@ http://localhost:7860
 
 Replace with your actual deployment URL.
 
-## Authentication
-
-**Current version:** No authentication required.
-
-For production deployments, consider adding:
-- API key authentication
-- OAuth 2.0
-- JWT tokens
-
 ## Endpoints
 
 ### Health Check
