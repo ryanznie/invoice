@@ -30,6 +30,7 @@ dependencies = [
     "evaluate",
     "scikit-learn",
     "seqeval>=1.2.2",
+    "numpy>=1.24.0",
     # Web app dependencies
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
@@ -43,11 +44,15 @@ dependencies = [
     # Testing dependencies
     "pytest>=8.0.0",
     "pytest-cov>=4.1.0",
+    # Benchmarking dependencies
+    "wandb>=0.16.0",
+    "pyyaml>=6.0.0",
 ]
 
 [project.scripts]
 invoice-ner-app = "app:main"
 invoice-ner-preprocess = "scripts.preprocess:main"
+invoice-ner-benchmark = "benchmarks.benchmark:main"
 
 [build-system]
 requires = ["hatchling"]
