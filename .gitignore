@@ -17,3 +17,6 @@ htmlcov/
 coverage.xml
 *.cover
 .hypothesis/
+
+# Weights and Biases
+wandb/ #logs
