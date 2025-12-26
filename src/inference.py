@@ -1,16 +1,17 @@
 """
-Model loading and inference for Invoice NER.
+Model loading and inference for Invoice NER using ONNX Runtime.
 """
 
 import os
 import logging
-import torch
+import numpy as np
 from PIL import Image
 from typing import List, Dict
-from transformers import LayoutLMv3Processor, LayoutLMv3ForTokenClassification
-from peft import PeftModel
+from transformers import LayoutLMv3Processor
+import onnxruntime as ort
 from .validation import validate_image, validate_words, validate_boxes
 
+ort.set_default_logger_severity(3)
 logger = logging.getLogger(__name__)
 
 # ============================================================================
@@ -18,25 +19,38 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 # Load configuration from environment variables with defaults
-MODEL_PATH = os.getenv("MODEL_PATH", "models/layoutlmv3-lora-invoice-number")
+# Default to the quantized model if available, otherwise standard ONNX
+DEFAULT_MODEL_PATH = "models/artifacts/layoutlmv3_invoice_ner.onnx"
+MODEL_PATH = os.getenv("MODEL_PATH", DEFAULT_MODEL_PATH)
+
 BASE_MODEL = os.getenv("BASE_MODEL", "microsoft/layoutlmv3-base")
 MAX_LENGTH = int(os.getenv("MAX_LENGTH", "512"))
 NUM_LABELS = int(os.getenv("NUM_LABELS", "3"))
 
 # Device selection: environment variable > MPS > CPU
+# Note: ONNX Runtime providers need to be configured explicitly
 device_env = os.getenv("DEVICE", "").lower()
-if device_env in ["cpu", "cuda", "mps"]:
-    DEVICE = device_env
-    logger.debug(f"Using device from DEVICE env var: {DEVICE}")
-elif torch.backends.mps.is_available():
-    DEVICE = "mps"
-    logger.debug("DEVICE env var not set, auto-detected MPS")
+PROVIDERS = ["CPUExecutionProvider"]
+if device_env == "cuda" or (device_env == "" and ort.get_device() == "GPU"):
+    if "CUDAExecutionProvider" in ort.get_available_providers():
+        PROVIDERS.insert(0, "CUDAExecutionProvider")
+        DEVICE = "cuda"
+    else:
+        DEVICE = "cpu"
+elif device_env == "mps":
+    if "CoreMLExecutionProvider" in ort.get_available_providers():
+        PROVIDERS.insert(0, "CoreMLExecutionProvider")
+        DEVICE = "mps"
+    else:
+        DEVICE = "cpu"
 else:
     DEVICE = "cpu"
-    logger.debug("DEVICE env var not set, defaulting to CPU")
 
-# Global model and processor
-model = None
+logger.debug(f"Using device: {DEVICE} with providers: {PROVIDERS}")
+
+# Global model session and processor
+session = None
+model = None  # Alias for backward compatibility
 processor = None
 
 
@@ -46,24 +60,76 @@ processor = None
 
 
 def load_model():
-    """Load the LayoutLMv3 model with LoRA adapters"""
-    global model, processor
+    """Load the LayoutLMv3 ONNX model and processor"""
+    global session, processor, model
 
-    print(f"🚀 Loading model from {MODEL_PATH}...")
-    print(f"📱 Using device: {DEVICE}")
+    # Resolve paths
+    # If MODEL_PATH is a directory (legacy config), we use it for processor
+    # but need to find the ONNX file elsewhere
+    model_path = MODEL_PATH
+
+    if os.path.isdir(model_path):
+        logger.warning(
+            f"MODEL_PATH {model_path} is a directory. Assuming it contains processor config."
+        )
+        processor_path = model_path
+
+        # Check for standard model.onnx inside the directory
+        potential_onnx = os.path.join(model_path, "model.onnx")
+        if os.path.exists(potential_onnx):
+            logger.info(f"Found ONNX model at: {potential_onnx}")
+            model_path = potential_onnx
+        else:
+            raise ValueError(
+                f"MODEL_PATH is a directory ({model_path}) but 'model.onnx' was not found inside it. Please point MODEL_PATH to the .onnx file directly."
+            )
+
+    elif os.path.isfile(model_path):
+        # It's a file (likely the .onnx file)
+        # Use its parent directory for processor config
+        processor_path = os.path.dirname(model_path)
+
+    elif not os.path.exists(model_path):
+        # Path doesn't exist, will fail later but set defaults for now
+        processor_path = BASE_MODEL
+        raise ValueError(f"MODEL_PATH {model_path} not found.")
+
+    print(f"🚀 Loading ONNX model from {model_path}...")
+    print(f"📱 Using device: {DEVICE} (Providers: {PROVIDERS})")
 
     # Load processor
-    processor = LayoutLMv3Processor.from_pretrained(MODEL_PATH, apply_ocr=False)
+    try:
+        # Try loading from the resolved processor path
+        processor = LayoutLMv3Processor.from_pretrained(processor_path, apply_ocr=False)
+        print(f"✅ Processor loaded from {processor_path}")
+    except Exception as e:
+        print(f"⚠️ Could not load processor from {processor_path}: {e}")
+        print(f"   Falling back to base model: {BASE_MODEL}")
+        processor = LayoutLMv3Processor.from_pretrained(BASE_MODEL, apply_ocr=False)
 
-    # Load base model + LoRA adapter
-    base = LayoutLMv3ForTokenClassification.from_pretrained(
-        BASE_MODEL, num_labels=NUM_LABELS
-    )
-    model = PeftModel.from_pretrained(base, MODEL_PATH)
-    model.to(DEVICE)
-    model.eval()
+    # Create ONNX Runtime session
+    try:
+        try:
+            print(f"👉 Attempting to load with providers: {PROVIDERS}")
+            session = ort.InferenceSession(model_path, providers=PROVIDERS)
+        except Exception as e:
+            if "CoreMLExecutionProvider" in PROVIDERS:
+                print(f"⚠️ Failed to load with CoreML: {e}")
+                print("🔄 Falling back to CPUExecutionProvider only...")
+                session = ort.InferenceSession(
+                    model_path, providers=["CPUExecutionProvider"]
+                )
+            else:
+                raise e
 
-    print("✅ Model loaded successfully!")
+        model = session  # Alias for backward compatibility
+        print(
+            f"⚙️ Final Config: Model={model_path}, Device={DEVICE}, Providers={session.get_providers()}"
+        )
+        print("✅ Model loaded successfully!")
+    except Exception as e:
+        print(f"❌ Failed to load ONNX model: {e}")
+        raise
 
 
 # ============================================================================
@@ -75,7 +141,7 @@ def predict_invoice(
     image: Image.Image, words: List[str], boxes: List[List[int]]
 ) -> Dict:
     """
-    Run inference on invoice
+    Run inference on invoice using ONNX Runtime
 
     Args:
         image: PIL Image
@@ -87,10 +153,9 @@ def predict_invoice(
 
     Raises:
         ValueError: If model not loaded, inputs are invalid, or dimensions mismatch
-        TypeError: If inputs have incorrect types
     """
     # Validate model loaded
-    if model is None or processor is None:
+    if session is None or processor is None:
         raise ValueError("Model not loaded. Call load_model() first.")
 
     # Validate inputs
@@ -106,44 +171,62 @@ def predict_invoice(
         truncation=True,
         padding="max_length",
         max_length=MAX_LENGTH,
-        return_tensors="pt",
+        return_tensors="np",  # Return numpy arrays for ONNX
     )
 
-    # Get word_ids before moving to device
-    word_ids = encoding.word_ids(0)
-
-    # Move to device
-    encoding_device = {k: v.to(DEVICE) for k, v in encoding.items()}
+    # Prepare inputs for ONNX Runtime
+    input_feed = {
+        "pixel_values": encoding["pixel_values"],
+        "input_ids": encoding["input_ids"],
+        "attention_mask": encoding["attention_mask"],
+        "bbox": encoding["bbox"],
+    }
 
     # Inference
-    with torch.no_grad():
-        outputs = model(**encoding_device)
-        logits = outputs.logits
-        predictions = torch.argmax(logits, dim=2)
+    try:
+        outputs = session.run(None, input_feed)
+        logits = outputs[0]  # Logits are the first output
+    except Exception as e:
+        logger.error(f"Inference failed: {e}")
+        raise
 
-        # Get confidence scores
-        probs = torch.softmax(logits, dim=2)
-        confidence_scores = torch.max(probs, dim=2).values
+    # Post-processing (similar to PyTorch version but using numpy)
+    predictions = np.argmax(logits, axis=2)
+
+    # Get confidence scores
+    # Softmax on last axis (axis 2)
+    exp_logits = np.exp(logits - np.max(logits, axis=2, keepdims=True))
+    probs = exp_logits / np.sum(exp_logits, axis=2, keepdims=True)
+    confidence_scores = np.max(probs, axis=2)
+
+    # Get word ids
+    word_ids = encoding.word_ids(0)
 
     # Decode predictions
     predicted_labels = []
     invoice_tokens = []
     word_confidences = []
 
+    # Get ID to Label mapping from model config if available, otherwise use default
+    # The processor should have the label map if loaded from fine-tuned checkpoint,
+    # but for safety we define default mapping for this specific task
+    # User requested to keep original labels (LABEL_0, LABEL_1, LABEL_2)
+    id2label = {0: "LABEL_0", 1: "LABEL_1", 2: "LABEL_2"}
+
     token_boxes = encoding["bbox"][0].tolist()
 
     prev_word_idx = None
     for idx, (pred, box, word_idx, conf) in enumerate(
         zip(
-            predictions[0].cpu().tolist(),
+            predictions[0].tolist(),
             token_boxes,
             word_ids,
-            confidence_scores[0].cpu().tolist(),
+            confidence_scores[0].tolist(),
         )
     ):
         # Skip special tokens and padding
         if box != [0, 0, 0, 0] and word_idx is not None:
-            label = model.config.id2label[pred]
+            label = id2label.get(pred, "LABEL_0")
 
             # Only take first subtoken prediction for each word
             if word_idx != prev_word_idx:
@@ -151,7 +234,7 @@ def predict_invoice(
                 word_confidences.append(conf)
 
                 # Extract invoice number tokens
-                if label.startswith("LABEL_1") or label.startswith("LABEL_2"):
+                if label == "LABEL_1" or label == "LABEL_2":
                     invoice_tokens.append(words[word_idx])
 
                 prev_word_idx = word_idx
