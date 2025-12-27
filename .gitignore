@@ -9,6 +9,7 @@ data/SROIE2019/
 **.log
 **/checkpoint-*/
 .env
+**.onnx
 
 # Testing
 .pytest_cache/

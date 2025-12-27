@@ -1,0 +1,26 @@
+{
+  "model_name": "layoutlmv3_invoice_ner",
+  "base_model": "microsoft/layoutlmv3-base",
+  "num_labels": 3,
+  "max_length": 512,
+  "onnx_opset_version": 14,
+  "input_names": [
+    "pixel_values",
+    "input_ids",
+    "attention_mask",
+    "bbox"
+  ],
+  "output_names": [
+    "logits"
+  ],
+  "label2id": {
+    "O": 0,
+    "B-INVOICE_ID": 1,
+    "I-INVOICE_ID": 2
+  },
+  "id2label": {
+    "0": "O",
+    "1": "B-INVOICE_ID",
+    "2": "I-INVOICE_ID"
+  }
+}

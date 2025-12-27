@@ -11,7 +11,6 @@ This script provides comprehensive benchmarking with Weights & Biases integratio
 Usage:
     python benchmarks/benchmark.py --model hybrid --data-dir data/test --run-name "hybrid-v1"
     python benchmarks/benchmark.py --model layoutlmv3 --data-dir data/test --run-name "layoutlmv3-baseline"
-    python benchmarks/benchmark.py --model dummy --data-dir data/test --run-name "dummy-test"
 """
 
 import os
@@ -34,8 +33,9 @@ from tqdm import tqdm
 
 from benchmarks.models.base import BaseInvoiceModel, InferenceResult
 from benchmarks.models.layoutlmv3_model import LayoutLMv3Model
-from benchmarks.models.dummy_model import DummyModel, FastDummyModel, SlowDummyModel
 from benchmarks.models.hybrid_model import HybridModel
+from benchmarks.models.onnx_model import OnnxModel
+from benchmarks.models.gemini_model import GeminiModel
 
 # Configure logging
 logging.basicConfig(
@@ -696,7 +696,7 @@ def get_model(model_name: str, config: Optional[Dict] = None) -> BaseInvoiceMode
     Factory function to instantiate models by name.
 
     Args:
-        model_name: Name of the model ('hybrid', 'layoutlmv3', 'dummy', etc.)
+        model_name: Name of the model ('hybrid', 'layoutlmv3', etc.)
         config: Optional configuration dictionary
 
     Returns:
@@ -705,9 +705,8 @@ def get_model(model_name: str, config: Optional[Dict] = None) -> BaseInvoiceMode
     model_registry = {
         "hybrid": HybridModel,
         "layoutlmv3": LayoutLMv3Model,
-        "dummy": DummyModel,
-        "fast_dummy": FastDummyModel,
-        "slow_dummy": SlowDummyModel,
+        "onnx": OnnxModel,
+        "gemini": GeminiModel,
     }
 
     if model_name.lower() not in model_registry:
@@ -733,9 +732,6 @@ Examples:
   # Benchmark LayoutLMv3 alone
   python benchmarks/benchmark.py --model layoutlmv3 --data-dir data/test --run-name "layoutlmv3-only"
   
-  # Quick test with dummy model
-  python benchmarks/benchmark.py --model dummy --data-dir data/test --run-name "dummy-test" --offline
-  
   # Compare multiple models (run separately and compare in W&B)
   python benchmarks/benchmark.py --model hybrid --data-dir data/test --run-name "run-1" --tags v1 baseline
   python benchmarks/benchmark.py --model layoutlmv3 --data-dir data/test --run-name "run-2" --tags v1 model-only
@@ -747,7 +743,7 @@ Examples:
         "--model",
         type=str,
         required=True,
-        choices=["hybrid", "layoutlmv3", "dummy", "fast_dummy", "slow_dummy"],
+        choices=["hybrid", "layoutlmv3", "onnx", "gemini"],
         help="Model to benchmark",
     )
 
@@ -805,10 +801,20 @@ Examples:
         help="Device for model inference",
     )
 
+    parser.add_argument(
+        "--model-path",
+        type=str,
+        default=None,
+        help="Path to model file (required for ONNX, optional for others)",
+    )
+
     args = parser.parse_args()
 
     # Create model config
-    model_config = {"device": args.device}
+    model_config = {
+        "device": args.device,
+        "model_path": args.model_path,
+    }
 
     # Instantiate model
     logger.info(f"Initializing {args.model} model...")

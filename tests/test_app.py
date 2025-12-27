@@ -358,27 +358,28 @@ class TestCreateAnnotatedImage:
 class TestPredictInvoice:
     """Test suite for predict_invoice function"""
 
-    @patch("src.inference.model")
+    @patch("src.inference.session")
     @patch("src.inference.processor")
     def test_predict_valid_input(
         self,
         mock_processor,
-        mock_model,
+        mock_session,
         sample_image,
         sample_words,
         sample_boxes_normalized,
     ):
         """Test prediction with valid inputs"""
-        import torch
+        import numpy as np
 
         # Create a proper mock encoding object
         mock_encoding = Mock()
         mock_encoding.word_ids = Mock(return_value=[None, 0, 1, 2, 3, 4, None])
         mock_encoding.__getitem__ = Mock(
             side_effect=lambda key: {
-                "input_ids": torch.tensor([[1, 2, 3, 4, 5, 6, 7]]),
-                "attention_mask": torch.tensor([[1, 1, 1, 1, 1, 1, 1]]),
-                "bbox": torch.tensor(
+                "input_ids": np.array([[1, 2, 3, 4, 5, 6, 7]]),
+                "attention_mask": np.array([[1, 1, 1, 1, 1, 1, 1]]),
+                "pixel_values": np.zeros((1, 3, 224, 224)),
+                "bbox": np.array(
                     [
                         [
                             [0, 0, 0, 0],
@@ -394,37 +395,14 @@ class TestPredictInvoice:
             }[key]
         )
         mock_encoding.items = Mock(
-            return_value=[
-                ("input_ids", torch.tensor([[1, 2, 3, 4, 5, 6, 7]])),
-                ("attention_mask", torch.tensor([[1, 1, 1, 1, 1, 1, 1]])),
-                (
-                    "bbox",
-                    torch.tensor(
-                        [
-                            [
-                                [0, 0, 0, 0],
-                                [100, 100, 200, 120],
-                                [210, 100, 280, 120],
-                                [290, 100, 400, 120],
-                                [100, 130, 180, 150],
-                                [190, 130, 300, 150],
-                                [0, 0, 0, 0],
-                            ]
-                        ]
-                    ),
-                ),
-            ]
-        )
+            return_value=[]
+        )  # ONNX path uses key access directly
 
         mock_processor.return_value = mock_encoding
 
-        # Setup model config
-        mock_model.config.id2label = {0: "LABEL_0", 1: "LABEL_1", 2: "LABEL_2"}
-
-        # Mock model output
-        mock_output = Mock()
-        # Create logits tensor: [batch_size, sequence_length, num_labels]
-        mock_output.logits = torch.tensor(
+        # Mock session output (list containing logits ndarray)
+        # Logits: [batch_size, sequence_length, num_labels]
+        mock_logits = np.array(
             [
                 [
                     [2.0, 0.1, 0.1],  # Token 0: LABEL_0
@@ -433,12 +411,11 @@ class TestPredictInvoice:
                     [2.0, 0.1, 0.1],  # Token 3: LABEL_0
                     [2.0, 0.1, 0.1],  # Token 4: LABEL_0
                     [2.0, 0.1, 0.1],  # Token 5: LABEL_0
-                    [2.0, 0.1, 0.1],
+                    [2.0, 0.1, 0.1],  # Token 6: LABEL_0
                 ]
             ]
-        )  # Token 6: LABEL_0
-
-        mock_model.return_value = mock_output
+        )
+        mock_session.run.return_value = [mock_logits]
 
         # Run prediction
         result = predict_invoice(sample_image, sample_words, sample_boxes_normalized)
@@ -450,7 +427,8 @@ class TestPredictInvoice:
         assert "invoice_number" in result
         assert "confidence_scores" in result
 
-        # Verify we got predictions
+        # Verify we got predictions - updated for new id2label mapping which might rely on defaults
+        # or explicit mapping in code
         assert len(result["words"]) > 0
         assert len(result["labels"]) > 0
         assert len(result["confidence_scores"]) > 0
@@ -458,15 +436,18 @@ class TestPredictInvoice:
     def test_predict_model_not_loaded(
         self, sample_image, sample_words, sample_boxes_normalized
     ):
-        """Test prediction when model is not loaded"""
-        with patch("src.inference.model", None), patch("src.inference.processor", None):
+        """Test prediction when model (session) is not loaded"""
+        with (
+            patch("src.inference.session", None),
+            patch("src.inference.processor", None),
+        ):
             with pytest.raises(ValueError, match="Model not loaded"):
                 predict_invoice(sample_image, sample_words, sample_boxes_normalized)
 
     def test_predict_wrong_image_type(self, sample_words, sample_boxes_normalized):
         """Test with wrong image type - will fail at image.size access"""
         with (
-            patch("src.inference.model", Mock()),
+            patch("src.inference.session", Mock()),
             patch("src.inference.processor", Mock()),
         ):
             with pytest.raises(AttributeError):  # 'str' object has no attribute 'size'
@@ -479,7 +460,7 @@ class TestPredictInvoice:
         invalid_img = Image.new("RGB", (0, 0))
 
         with (
-            patch("src.inference.model", Mock()),
+            patch("src.inference.session", Mock()),
             patch("src.inference.processor", Mock()),
         ):
             with pytest.raises(ValueError, match="Invalid image dimensions"):
@@ -488,7 +469,7 @@ class TestPredictInvoice:
     def test_predict_empty_words(self, sample_image, sample_boxes_normalized):
         """Test with empty words list"""
         with (
-            patch("src.inference.model", Mock()),
+            patch("src.inference.session", Mock()),
             patch("src.inference.processor", Mock()),
         ):
             with pytest.raises(ValueError, match="Words list cannot be empty"):
@@ -497,7 +478,7 @@ class TestPredictInvoice:
     def test_predict_wrong_words_type(self, sample_image, sample_boxes_normalized):
         """Test with wrong type for words - will fail at len() comparison"""
         with (
-            patch("src.inference.model", Mock()),
+            patch("src.inference.session", Mock()),
             patch("src.inference.processor", Mock()),
         ):
             # String has different length than boxes, will fail at mismatch check
@@ -507,7 +488,7 @@ class TestPredictInvoice:
     def test_predict_non_string_words(self, sample_image, sample_boxes_normalized):
         """Test with non-string elements in words"""
         with (
-            patch("src.inference.model", Mock()),
+            patch("src.inference.session", Mock()),
             patch("src.inference.processor", Mock()),
         ):
             with pytest.raises(TypeError, match="All words must be strings"):
@@ -518,7 +499,7 @@ class TestPredictInvoice:
     def test_predict_wrong_boxes_type(self, sample_image, sample_words):
         """Test with wrong type for boxes - will fail at len() comparison"""
         with (
-            patch("src.inference.model", Mock()),
+            patch("src.inference.session", Mock()),
             patch("src.inference.processor", Mock()),
         ):
             # String has different length than words, will fail at mismatch check
@@ -530,7 +511,7 @@ class TestPredictInvoice:
     ):
         """Test with mismatched words and boxes lengths"""
         with (
-            patch("src.inference.model", Mock()),
+            patch("src.inference.session", Mock()),
             patch("src.inference.processor", Mock()),
         ):
             with pytest.raises(ValueError, match="Mismatch"):
@@ -542,7 +523,7 @@ class TestPredictInvoice:
         invalid_boxes = [[100, 100, 200]]  # Only 3 coordinates
 
         with (
-            patch("src.inference.model", Mock()),
+            patch("src.inference.session", Mock()),
             patch("src.inference.processor", Mock()),
         ):
             with pytest.raises(ValueError, match="Box 0 must be a list of 4 integers"):
@@ -554,7 +535,7 @@ class TestPredictInvoice:
         invalid_boxes = [[100, 100, 1500, 120]]  # 1500 > 1000
 
         with (
-            patch("src.inference.model", Mock()),
+            patch("src.inference.session", Mock()),
             patch("src.inference.processor", Mock()),
         ):
             with pytest.raises(ValueError, match="Box 0 coordinates must be in range"):
@@ -566,7 +547,7 @@ class TestPredictInvoice:
         invalid_boxes = [[200, 100, 100, 120]]  # x0 > x1
 
         with (
-            patch("src.inference.model", Mock()),
+            patch("src.inference.session", Mock()),
             patch("src.inference.processor", Mock()),
         ):
             with pytest.raises(ValueError, match="Box 0 has invalid geometry"):
@@ -578,7 +559,7 @@ class TestPredictInvoice:
         invalid_boxes = [["100", "100", "200", "120"]]  # Strings instead of numbers
 
         with (
-            patch("src.inference.model", Mock()),
+            patch("src.inference.session", Mock()),
             patch("src.inference.processor", Mock()),
         ):
             with pytest.raises(TypeError, match="Box 0 coordinates must be numeric"):

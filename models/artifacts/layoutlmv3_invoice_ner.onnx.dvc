@@ -1,0 +1,5 @@
+outs:
+- md5: 27488294cecffb7e82bb4dbdba745406
+  size: 501667170
+  hash: md5
+  path: layoutlmv3_invoice_ner.onnx
