@@ -12,6 +12,13 @@ Developer setup guide covering:
 - Dataset preparation
 - Troubleshooting
 
+### 🔌 [API_USAGE.md](./API_USAGE.md)
+API documentation and examples:
+- REST API reference
+- Request/Response formats
+- Error handling
+- Best practices
+
 ### 🧪 [TESTING.md](./TESTING.md)
 Testing guide and validation documentation:
 - Quick start for running tests
@@ -26,13 +33,16 @@ Testing guide and validation documentation:
 ### For Developers
 - **Getting Started**: See main [README.md](../README.md)
 - **Setup Environment**: [DEV_SETUP.md](./DEV_SETUP.md)
+- **API Docs**: [API_USAGE.md](./API_USAGE.md)
 - **Run Tests**: [TESTING.md](./TESTING.md)
 
 ### For Production
+- **API Reference**: [API_USAGE.md](./API_USAGE.md)
 - **Testing & Validation**: [TESTING.md](./TESTING.md)
 - **Docker Deployment**: See main [README.md](../README.md)
 
 ### For Research
+- **Benchmarking**: [../benchmarks/README.md](../benchmarks/README.md)
 - **Notebooks**: See [../notebooks/](../notebooks/)
 - **Training**: [DEV_SETUP.md](./DEV_SETUP.md)
 
@@ -41,6 +51,7 @@ Testing guide and validation documentation:
 ```
 docs/
 ├── README.md                   # This file
+├── API_USAGE.md                # API documentation
 ├── DEV_SETUP.md                # Development setup
 └── TESTING.md                  # Testing guide
 ```

@@ -23,24 +23,33 @@ python benchmarks/benchmark.py \
   --device mps \
   --split train
 
-# Benchmark LayoutLMv3 only
+# Benchmark Finetuned LayoutLMv3 only
 python benchmarks/benchmark.py \
   --model layoutlmv3 \
-  --data-dir data/test \ 
-  --run-name "layoutlmv3-lora-invoice-number-mps" \      
+  --data-dir data/test \
+  --run-name "layoutlmv3-lora-invoice-number-mps" \
   --device mps
 
-# Run offline (no W&B)
+# Benchmark ONNX model
 python benchmarks/benchmark.py \
-  --model hybrid \
+  --model onnx \
   --data-dir data/test \
-  --offline
+  --model-path models/artifacts/layoutlmv3_invoice_ner.onnx \
+  --run-name "onnx-test"
+
+# Benchmark Gemini 2.5 Flash (requires GEMINI_API_KEY env var)
+python benchmarks/benchmark.py \
+  --model gemini \
+  --data-dir data/test \
+  --run-name "gemini-2.5-flash"
 ```
 
 ## Available Models
 
-- **`hybrid`** - Heuristics first, LayoutLMv3 fallback (recommended)
+- **`hybrid`** - Heuristics first, LayoutLMv3 fallback (current production architecture)
 - **`layoutlmv3`** - LayoutLMv3 model only
+- **`onnx`** - ONNX Runtime inference
+- **`gemini`** - Google Gemini 2.5 Flash (via API)
 
 ## Tracked Metrics
 
@@ -59,10 +68,11 @@ python benchmarks/benchmark.py \
 ## Command-Line Arguments
 
 **Required:**
-- `--model` - Model to benchmark (`hybrid`, `layoutlmv3`)
+- `--model` - Model to benchmark (`hybrid`, `layoutlmv3`, `onnx`, `gemini`)
 - `--data-dir` - Path to data directory
 
 **Optional:**
+- `--model-path` - Path to model file (Required for `onnx`)
 - `--split` - Dataset split (`test` or `train`, default: `test`)
 - `--run-name` - Name for this run
 - `--wandb-project` - W&B project name

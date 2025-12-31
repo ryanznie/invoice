@@ -9,6 +9,8 @@ Named Entity Recognition (NER) for invoice processing using LayoutLMv3 with LoRA
 - 🌐 **Dual Interface** - REST API for programmatic access + Gradio UI for interactive use
 - 🚀 **Production Ready** - Comprehensive test suite (107 tests), Docker support, health checks
 - 📊 **Multi-Format Support** - Accepts TXT and JSON OCR data formats
+- ⚡ **ONNX Support** - Optimized inference with ONNX Runtime (FP32/FP16/INT8)
+- 📈 **Benchmarking** - Compare models (LayoutLMv3, Gemini, ONNX) with W&B integration
 - 🔧 **Device Flexible** - Runs on CPU, CUDA (NVIDIA), or MPS (Apple Silicon)
 - 📝 **Interactive Docs** - Auto-generated Swagger/ReDoc API documentation
 
@@ -43,6 +45,11 @@ invoice-ner/
 │   ├── 02_labeling.ipynb       # Data labeling analysis
 │   ├── 03_inference.ipynb      # Model inference testing
 │   └── 04_postprocess.ipynb    # Post-processing experiments
+│
+├── benchmarks/                 # Benchmarking suite
+│   ├── models/                 # Model wrappers (Gemini, ONNX, etc.)
+│   ├── benchmark.py            # Main benchmark script
+│   └── README.md               # Benchmarking documentation
 │
 ├── scripts/                    # Utility scripts
 │   ├── preprocess.py           # Data preprocessing utilities
@@ -307,8 +314,12 @@ The application provides both a **Gradio web interface** and a **REST API**:
 
 For development setup, data labeling, and model training, see [docs/DEV_SETUP.md](docs/DEV_SETUP.md). For detailed testing documentation, see [docs/TESTING.md](docs/TESTING.md).
 
-## 📄 License
+## 📊 Benchmarking
 
-MIT License
+The repository includes a comprehensive benchmarking suite to evaluate and compare different models:
 
-Copyright (c) 2025 Ryan Nie
+- **Supported Models**: LayoutLMv3, Hybrid (Heuristics + Model), ONNX, and Google Gemini 2.5 Flash.
+- **Metrics**: Accuracy, Latency (P50/P95/P99), Fallback Rate, and Human Review Rate.
+- **Tracking**: Integrated with Weights & Biases for experiment tracking.
+
+See **[benchmarks/README.md](benchmarks/README.md)** for detailed usage instructions.
