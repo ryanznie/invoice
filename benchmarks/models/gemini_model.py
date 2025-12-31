@@ -3,7 +3,8 @@ import logging
 import time
 from typing import Dict, Optional, List, Any
 from PIL import Image
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from dotenv import load_dotenv
 from benchmarks.models.base import BaseInvoiceModel, InferenceResult
 
@@ -38,8 +39,8 @@ class GeminiModel(BaseInvoiceModel):
         """
         if not genai:
             raise ImportError(
-                "google-generativeai package is not installed. "
-                "Please install it with: pip install google-generativeai"
+                "google-genai package is not installed. "
+                "Please install it with: pip install google-genai"
             )
 
         if not self.api_key:
@@ -49,11 +50,10 @@ class GeminiModel(BaseInvoiceModel):
 
         logger.info(f"Configuring Gemini with model: {self.model_name}")
         try:
-            genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel(self.model_name)
-            logger.info(f"✓ Gemini model initialized: {self.model_name}")
+            self.client = genai.Client(api_key=self.api_key)
+            logger.info("✓ Gemini client initialized")
         except Exception as e:
-            logger.error(f"Failed to initialize Gemini model: {e}")
+            logger.error(f"Failed to initialize Gemini client: {e}")
             raise
 
     def predict(
@@ -67,8 +67,8 @@ class GeminiModel(BaseInvoiceModel):
         """
         Run inference using Gemini API.
         """
-        if self.model is None:
-            raise RuntimeError("Model not loaded. Call load() first.")
+        if self.client is None:
+            raise RuntimeError("Client not loaded. Call load() first.")
 
         # Construct prompt
         system_prompt = (
@@ -103,14 +103,16 @@ class GeminiModel(BaseInvoiceModel):
         for attempt in range(max_retries + 1):
             try:
                 # Generation config for more deterministic output
-                generation_config = genai.types.GenerationConfig(
+                config = types.GenerateContentConfig(
                     candidate_count=1,
                     max_output_tokens=400,
-                    temperature=0.0,  # Low temperature for factual extraction
+                    temperature=0.0,
                 )
 
-                response = self.model.generate_content(
-                    inputs, generation_config=generation_config
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=inputs,
+                    config=config,
                 )
 
                 # Handle potential safety blocks or empty responses
@@ -122,7 +124,7 @@ class GeminiModel(BaseInvoiceModel):
                         method=self.model_name,
                         metadata={
                             "error": "Empty response",
-                            "safety_ratings": response.prompt_feedback,
+                            # "safety_ratings": response.prompt_feedback, # Not directly compatible, skipping for now
                         },
                     )
 
