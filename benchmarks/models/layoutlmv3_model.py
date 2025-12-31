@@ -47,8 +47,9 @@ class LayoutLMv3Model(BaseInvoiceModel):
         self.processor = None
 
         # Set configuration with defaults
-        self.model_path = self.model_config.get(
-            "model_path", "models/layoutlmv3-lora-invoice-number"
+        self.model_path = (
+            self.model_config.get("model_path")
+            or "models/layoutlmv3-lora-invoice-number"
         )
         self.base_model = self.model_config.get(
             "base_model", "microsoft/layoutlmv3-base"

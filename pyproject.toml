@@ -1,18 +1,12 @@
 [project]
 name = "invoice"
-version = "0.1.0"
+version = "0.2.2"
 description = "Finetuned LayoutLMv3 model for invoice number extraction"
 authors = [{ name = "Ryan Z. Nie", email = "ryanznie@gatech.edu" }]
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 keywords = ["invoice", "ner", "layoutlmv3", "document-ai", "ocr"]
-classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    "Programming Language :: Python :: 3.10",
-]
 
 dependencies = [
     "dvc>=3.63.0",
@@ -47,6 +41,7 @@ dependencies = [
     # Benchmarking dependencies
     "wandb>=0.16.0",
     "pyyaml>=6.0.0",
+    "google-genai",
 ]
 
 [project.scripts]
