@@ -23,6 +23,13 @@ python benchmarks/benchmark.py \
   --device mps \
   --split train
 
+# Benchmark hybrid model with ONNX fallback
+python benchmarks/benchmark.py \
+  --model hybrid \
+  --data-dir data/test \
+  --model-path models/artifacts/layoutlmv3_invoice_ner.onnx \
+  --run-name "layoutlmv3-lora-heuristics-ONNX"
+
 # Benchmark Finetuned LayoutLMv3 only
 python benchmarks/benchmark.py \
   --model layoutlmv3 \

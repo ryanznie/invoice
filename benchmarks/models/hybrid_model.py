@@ -61,10 +61,21 @@ class HybridModel(BaseInvoiceModel):
         Note: Heuristics don't require loading, they're pure pattern matching.
         """
         if self.fallback_model is None:
-            # Default to LayoutLMv3
-            from benchmarks.models.layoutlmv3_model import LayoutLMv3Model
+            # Check for ONNX model path
+            model_path = ""
+            if self.model_config:
+                model_path = self.model_config.get("model_path", "")
 
-            self.fallback_model = LayoutLMv3Model(self.model_config)
+            if str(model_path).endswith(".onnx"):
+                logger.info("Detected ONNX model path, using OnnxModel fallback")
+                from benchmarks.models.onnx_model import OnnxModel
+
+                self.fallback_model = OnnxModel(self.model_config)
+            else:
+                # Default to LayoutLMv3
+                from benchmarks.models.layoutlmv3_model import LayoutLMv3Model
+
+                self.fallback_model = LayoutLMv3Model(self.model_config)
 
         logger.info("Loading hybrid model...")
         logger.info("✓ Heuristics ready (no loading required)")
@@ -142,6 +153,16 @@ class HybridModel(BaseInvoiceModel):
 
             result.metadata["fallback_used"] = True
             result.metadata["extraction_stage"] = "model_fallback"
+
+            # Get model name from config
+            fb_config = self.fallback_model.get_config()
+            model_path = (
+                fb_config.get("model_path")
+                or fb_config.get("checkpoint_path")
+                or "unknown"
+            )
+            result.metadata["model_name"] = os.path.basename(str(model_path))
+
             result.method = "model_fallback"
 
             return result
@@ -167,8 +188,7 @@ class HybridModel(BaseInvoiceModel):
             fallback_config = self.fallback_model.get_config()
 
         return {
-            "model_name": "HybridModel (Heuristics + ML)",
-            "model_version": "v1.0",
+            "model_name": "HybridModel (Heuristics + LM)",
             "architecture": "Heuristics → Model Fallback",
             "heuristic_patterns": 14,  # From heuristics.py
             "fallback_model": fallback_config,
