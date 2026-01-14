@@ -38,8 +38,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Invoice NER API",
-    description="LayoutLMv3 model for extracting invoice numbers",
-    version="1.0.0",
+    description="Finetuned LayoutLMv3 model for extracting invoice numbers",
     lifespan=lifespan,
 )
 
@@ -55,14 +54,14 @@ class PredictionRequest(BaseModel):
 async def health_check():
     """Health check endpoint"""
     return {
-        "status": "healthy" if inference.model is not None else "unhealthy",
-        "model_loaded": inference.model is not None,
+        "status": "healthy" if inference.backend is not None else "unhealthy",
+        "model_loaded": inference.backend is not None,
         "device": inference.DEVICE,
     }
 
 
 @app.post("/predict")
-async def predict(
+def predict(
     image: UploadFile = File(..., description="Invoice image file (JPG, PNG, etc.)"),
     ocr_file: UploadFile = File(..., description="OCR data file (TXT or JSON format)"),
 ):
@@ -78,12 +77,12 @@ async def predict(
     Returns:
         JSON with extracted invoice number, method used, and detailed predictions
     """
-    if inference.model is None or inference.processor is None:
+    if inference.backend is None or inference.processor is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
 
     try:
         # Read and validate image
-        image_bytes = await image.read()
+        image_bytes = image.file.read()
         try:
             pil_image = Image.open(io.BytesIO(image_bytes))
             pil_image = pil_image.convert("RGB")
@@ -93,7 +92,7 @@ async def predict(
         img_width, img_height = pil_image.size
 
         # Read and parse OCR file
-        ocr_bytes = await ocr_file.read()
+        ocr_bytes = ocr_file.file.read()
         ocr_filename = ocr_file.filename.lower()
 
         try:

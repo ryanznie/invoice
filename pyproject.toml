@@ -1,6 +1,6 @@
 [project]
 name = "invoice"
-version = "0.2.3"
+version = "0.3.0"
 description = "Finetuned LayoutLMv3 model for invoice number extraction"
 authors = [{ name = "Ryan Z. Nie", email = "ryanznie@gatech.edu" }]
 readme = "README.md"
@@ -35,6 +35,7 @@ dependencies = [
     "onnxruntime>=1.16.0",
     "onnxruntime-tools>=1.7.0",
     "onnxconverter-common>=1.14.0",
+    "tritonclient[http]>=2.41.0",
     # Testing dependencies
     "pytest>=8.0.0",
     "pytest-cov>=4.1.0",

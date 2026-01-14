@@ -1,0 +1,32 @@
+name: "layoutlmv3-lora-invoice-number"
+platform: "onnxruntime_onnx"
+max_batch_size: 8
+
+dynamic_batching { }
+
+input {
+  name: "pixel_values"
+  data_type: TYPE_FP32
+  dims: [3, 224, 224]
+}
+input {
+  name: "input_ids"
+  data_type: TYPE_INT64
+  dims: [-1]
+}
+input {
+  name: "attention_mask"
+  data_type: TYPE_INT64
+  dims: [-1]
+}
+input {
+  name: "bbox"
+  data_type: TYPE_INT64
+  dims: [-1, 4]
+}
+
+output {
+  name: "logits"
+  data_type: TYPE_FP32
+  dims: [-1, 3]
+}
