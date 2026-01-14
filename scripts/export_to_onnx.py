@@ -81,7 +81,7 @@ class ONNXExporter:
         self,
         model: torch.nn.Module,
         processor: LayoutLMv3Processor,
-        opset_version: int = 14,
+        opset_version: int = 17,
     ) -> Path:
         """Export merged model to ONNX format"""
         print("\n🚀 Exporting to ONNX...")
@@ -149,6 +149,7 @@ class ONNXExporter:
                 output_names=output_names,
                 dynamic_axes=dynamic_axes,
                 opset_version=opset_version,
+                custom_opsets={"ai.onnx.ml": 3},  # CRITICAL for Triton
                 do_constant_folding=True,
                 export_params=True,
                 verbose=False,
@@ -405,7 +406,7 @@ class ONNXExporter:
             "base_model": self.base_model,
             "num_labels": self.num_labels,
             "max_length": 512,
-            "onnx_opset_version": 14,
+            "onnx_opset_version": 17,
             "input_names": ["pixel_values", "input_ids", "attention_mask", "bbox"],
             "output_names": ["logits"],
             "label2id": {"O": 0, "B-INVOICE_ID": 1, "I-INVOICE_ID": 2},
