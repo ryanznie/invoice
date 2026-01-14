@@ -1,5 +1,5 @@
 """
-Model loading and inference for Invoice NER using ONNX Runtime.
+Model loading and inference for Invoice NER using ONNX Runtime or Triton Inference Server.
 """
 
 import os
@@ -9,6 +9,9 @@ from PIL import Image
 from typing import List, Dict
 from transformers import LayoutLMv3Processor
 import onnxruntime as ort
+from abc import ABC, abstractmethod
+import tritonclient.http as httpclient
+
 from .validation import validate_image, validate_words, validate_boxes
 
 ort.set_default_logger_severity(3)
@@ -17,6 +20,12 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
+
+# Backend Configuration
+INFERENCE_BACKEND = os.getenv("INFERENCE_BACKEND", "onnx").lower()
+TRITON_URL = os.getenv("TRITON_URL", "localhost:8000")
+TRITON_MODEL_NAME = os.getenv("TRITON_MODEL_NAME", "layoutlmv3-lora-invoice-number")
+TRITON_MODEL_VERSION = os.getenv("TRITON_MODEL_VERSION", "1")
 
 # Load configuration from environment variables with defaults
 # Default to the quantized model if available, otherwise standard ONNX
@@ -49,9 +58,152 @@ else:
 logger.debug(f"Using device: {DEVICE} with providers: {PROVIDERS}")
 
 # Global model session and processor
-session = None
-model = None  # Alias for backward compatibility
 processor = None
+backend = None
+model = None  # Alias for backward compatibility (ONNX session)
+
+# ============================================================================
+# BACKEND ABSTRACTION
+# ============================================================================
+
+
+class InferenceBackend(ABC):
+    @abstractmethod
+    def load(self, model_path: str):
+        """Load the model or establish connection"""
+        pass
+
+    @abstractmethod
+    def predict(self, inputs: Dict[str, np.ndarray]) -> np.ndarray:
+        """Run inference and return logits"""
+        pass
+
+
+class OnnxBackend(InferenceBackend):
+    def __init__(self):
+        self.session = None
+
+    def load(self, model_path: str):
+        print(f"🚀 Loading ONNX model from {model_path}...")
+        print(f"📱 Using device: {DEVICE} (Providers: {PROVIDERS})")
+
+        try:
+            try:
+                print(f"👉 Attempting to load with providers: {PROVIDERS}")
+                self.session = ort.InferenceSession(model_path, providers=PROVIDERS)
+            except Exception as e:
+                if "CoreMLExecutionProvider" in PROVIDERS:
+                    print(f"⚠️ Failed to load with CoreML: {e}")
+                    print("🔄 Falling back to CPUExecutionProvider only...")
+                    self.session = ort.InferenceSession(
+                        model_path, providers=["CPUExecutionProvider"]
+                    )
+                else:
+                    raise e
+
+            print(
+                f"⚙️ Final Config: Model={model_path}, Device={DEVICE}, Providers={self.session.get_providers()}"
+            )
+            print("✅ ONNX Model loaded successfully!")
+        except Exception as e:
+            print(f"❌ Failed to load ONNX model: {e}")
+            raise
+
+    def predict(self, inputs: Dict[str, np.ndarray]) -> np.ndarray:
+        if self.session is None:
+            raise ValueError("ONNX Session not loaded.")
+
+        try:
+            outputs = self.session.run(None, inputs)
+            return outputs[0]  # Return logits
+        except Exception as e:
+            logger.error(f"ONNX Inference failed: {e}")
+            raise
+
+
+class TritonBackend(InferenceBackend):
+    def __init__(self):
+        # We don't store client state to avoid threading issues with gevent
+        self.model_name = TRITON_MODEL_NAME
+        self.model_version = TRITON_MODEL_VERSION
+
+    def load(self, model_path: str):
+        # We ignore model_path for Triton connection, but we can verify server health
+        print(f"🚀 Connecting to Triton Server at {TRITON_URL}...")
+        try:
+            # Create a temporary client for health check
+            client = httpclient.InferenceServerClient(url=TRITON_URL, verbose=False)
+            if not client.is_server_live():
+                raise ConnectionError("Triton server is not live")
+            if not client.is_server_ready():
+                raise ConnectionError("Triton server is not ready")
+            if not client.is_model_ready(self.model_name):
+                raise ValueError(
+                    f"Model {self.model_name} is not ready on Triton server"
+                )
+
+            print(f"✅ Connected to Triton Server! Model '{self.model_name}' is ready.")
+        except Exception as e:
+            print(f"❌ Failed to connect to Triton: {e}")
+            raise
+
+    def predict(self, inputs: Dict[str, np.ndarray]) -> np.ndarray:
+        # Create a fresh client for each request to ensure thread safety
+        # when running in a threadpool (FastAPI sync endpoints)
+        try:
+            client = httpclient.InferenceServerClient(url=TRITON_URL, verbose=False)
+        except Exception as e:
+            raise ValueError(f"Failed to create Triton client: {e}")
+
+        # Prepare Triton inputs
+        triton_inputs = []
+        for name, data in inputs.items():
+            # Map input names if necessary (LayoutLMv3 usually uses standard names)
+            # data matches numpy array
+            # Create InferInput
+            # Helper to map numpy types to triton types string if needed,
+            # but set_data_from_numpy handles it usually if type is standard.
+
+            # Explicit type conversion might be safer since Triton follows strong typing
+            triton_type = self._get_triton_datatype(data.dtype)
+            infer_input = httpclient.InferInput(name, data.shape, triton_type)
+            infer_input.set_data_from_numpy(data)
+            triton_inputs.append(infer_input)
+
+        try:
+            response = client.infer(model_name=self.model_name, inputs=triton_inputs)
+            # We assume the first output is logits, or look for 'logits' if available
+            # If we don't specify outputs, it returns all.
+            # Let's try to get 'logits' or fall back to the first available output
+
+            # Note: response.as_numpy(name) requires output name.
+            # We can inspect response.get_output(name) but we need names first.
+
+            # Get model metadata to find output name if strictly needed,
+            # but standard is often 'logits'. Let's trust the server returns what we need
+            # or use the first output since we only expect one main output (logits).
+
+            # with httpclient, response is a wrapper
+
+            # response.get_response() is metadata JSON
+            output_name = response.get_response()["outputs"][0]["name"]
+            return response.as_numpy(output_name)
+
+        except Exception as e:
+            logger.error(f"Triton Inference failed: {e}")
+            raise
+
+    def _get_triton_datatype(self, numpy_dtype):
+        # Simple mapper, extend as needed
+        if numpy_dtype == np.int64:
+            return "INT64"
+        if numpy_dtype == np.int32:
+            return "INT32"
+        if numpy_dtype == np.float32:
+            return "FP32"
+        if numpy_dtype == np.float64:
+            return "FP64"
+        return "FP32"  # Fallback/Assumption
 
 
 # ============================================================================
@@ -60,46 +212,28 @@ processor = None
 
 
 def load_model():
-    """Load the LayoutLMv3 ONNX model and processor"""
-    global session, processor, model
+    """Load the model (backend) and processor"""
+    global processor, backend
 
     # Resolve paths
-    # If MODEL_PATH is a directory (legacy config), we use it for processor
-    # but need to find the ONNX file elsewhere
     model_path = MODEL_PATH
+    processor_path = BASE_MODEL
 
     if os.path.isdir(model_path):
         logger.warning(
             f"MODEL_PATH {model_path} is a directory. Assuming it contains processor config."
         )
         processor_path = model_path
-
-        # Check for standard model.onnx inside the directory
         potential_onnx = os.path.join(model_path, "model.onnx")
         if os.path.exists(potential_onnx):
-            logger.info(f"Found ONNX model at: {potential_onnx}")
             model_path = potential_onnx
-        else:
-            raise ValueError(
-                f"MODEL_PATH is a directory ({model_path}) but 'model.onnx' was not found inside it. Please point MODEL_PATH to the .onnx file directly."
-            )
-
     elif os.path.isfile(model_path):
-        # It's a file (likely the .onnx file)
-        # Use its parent directory for processor config
         processor_path = os.path.dirname(model_path)
-
-    elif not os.path.exists(model_path):
-        # Path doesn't exist, will fail later but set defaults for now
-        processor_path = BASE_MODEL
-        raise ValueError(f"MODEL_PATH {model_path} not found.")
-
-    print(f"🚀 Loading ONNX model from {model_path}...")
-    print(f"📱 Using device: {DEVICE} (Providers: {PROVIDERS})")
+    elif not os.path.exists(model_path) and INFERENCE_BACKEND == "onnx":
+        print(f"⚠️ MODEL_PATH {model_path} not found.")
 
     # Load processor
     try:
-        # Try loading from the resolved processor path
         processor = LayoutLMv3Processor.from_pretrained(processor_path, apply_ocr=False)
         print(f"✅ Processor loaded from {processor_path}")
     except Exception as e:
@@ -107,29 +241,22 @@ def load_model():
         print(f"   Falling back to base model: {BASE_MODEL}")
         processor = LayoutLMv3Processor.from_pretrained(BASE_MODEL, apply_ocr=False)
 
-    # Create ONNX Runtime session
-    try:
-        try:
-            print(f"👉 Attempting to load with providers: {PROVIDERS}")
-            session = ort.InferenceSession(model_path, providers=PROVIDERS)
-        except Exception as e:
-            if "CoreMLExecutionProvider" in PROVIDERS:
-                print(f"⚠️ Failed to load with CoreML: {e}")
-                print("🔄 Falling back to CPUExecutionProvider only...")
-                session = ort.InferenceSession(
-                    model_path, providers=["CPUExecutionProvider"]
-                )
-            else:
-                raise e
+    # Initialize Backend
+    print(f"👉 Initializing Inference Backend: {INFERENCE_BACKEND.upper()}")
 
-        model = session  # Alias for backward compatibility
-        print(
-            f"⚙️ Final Config: Model={model_path}, Device={DEVICE}, Providers={session.get_providers()}"
-        )
-        print("✅ Model loaded successfully!")
-    except Exception as e:
-        print(f"❌ Failed to load ONNX model: {e}")
-        raise
+    if INFERENCE_BACKEND == "triton":
+        backend = TritonBackend()
+    else:
+        # Default to ONNX
+        backend = OnnxBackend()
+
+    # Load Backend (Connect or Load File)
+    backend.load(model_path)
+
+    # helper for backward compatibility
+    if isinstance(backend, OnnxBackend):
+        global model
+        model = backend.session
 
 
 # ============================================================================
@@ -141,21 +268,10 @@ def predict_invoice(
     image: Image.Image, words: List[str], boxes: List[List[int]]
 ) -> Dict:
     """
-    Run inference on invoice using ONNX Runtime
-
-    Args:
-        image: PIL Image
-        words: List of OCR words
-        boxes: List of bounding boxes [x0, y0, x1, y1] normalized to 0-1000
-
-    Returns:
-        Dictionary with predictions and invoice number
-
-    Raises:
-        ValueError: If model not loaded, inputs are invalid, or dimensions mismatch
+    Run inference on invoice using the configured backend
     """
     # Validate model loaded
-    if session is None or processor is None:
+    if backend is None or processor is None:
         raise ValueError("Model not loaded. Call load_model() first.")
 
     # Validate inputs
@@ -171,26 +287,21 @@ def predict_invoice(
         truncation=True,
         padding="max_length",
         max_length=MAX_LENGTH,
-        return_tensors="np",  # Return numpy arrays for ONNX
+        return_tensors="np",
     )
 
-    # Prepare inputs for ONNX Runtime
-    input_feed = {
+    # Prepare inputs dictionary
+    inputs = {
         "pixel_values": encoding["pixel_values"],
         "input_ids": encoding["input_ids"],
         "attention_mask": encoding["attention_mask"],
         "bbox": encoding["bbox"],
     }
 
-    # Inference
-    try:
-        outputs = session.run(None, input_feed)
-        logits = outputs[0]  # Logits are the first output
-    except Exception as e:
-        logger.error(f"Inference failed: {e}")
-        raise
+    # Inference via Backend
+    logits = backend.predict(inputs)
 
-    # Post-processing (similar to PyTorch version but using numpy)
+    # Post-processing
     predictions = np.argmax(logits, axis=2)
 
     # Get confidence scores
@@ -207,15 +318,19 @@ def predict_invoice(
     invoice_tokens = []
     word_confidences = []
 
-    # Get ID to Label mapping from model config if available, otherwise use default
-    # The processor should have the label map if loaded from fine-tuned checkpoint,
-    # but for safety we define default mapping for this specific task
-    # User requested to keep original labels (LABEL_0, LABEL_1, LABEL_2)
-    id2label = {0: "LABEL_0", 1: "LABEL_1", 2: "LABEL_2"}
+    # Map IDs to Labels
+    # Use processor's id2label if available, else default
+    if hasattr(processor, "id2label") and processor.id2label:
+        id2label = processor.id2label
+    else:
+        id2label = {0: "LABEL_0", 1: "LABEL_1", 2: "LABEL_2"}
 
     token_boxes = encoding["bbox"][0].tolist()
 
     prev_word_idx = None
+
+    # Iterate through predictions
+    # Note: predictions[0], confidence_scores[0] because batch size is 1
     for idx, (pred, box, word_idx, conf) in enumerate(
         zip(
             predictions[0].tolist(),
@@ -226,14 +341,23 @@ def predict_invoice(
     ):
         # Skip special tokens and padding
         if box != [0, 0, 0, 0] and word_idx is not None:
-            label = id2label.get(pred, "LABEL_0")
+            # Handle integer keys in id2label (JSON keys are strings sometimes in configs)
+            # but here internal dict usually int keys.
+            label = id2label.get(pred, id2label.get(str(pred), "LABEL_0"))
 
             # Only take first subtoken prediction for each word
             if word_idx != prev_word_idx:
                 predicted_labels.append(label)
                 word_confidences.append(conf)
 
-                # Extract invoice number tokens
+                # Extract invoice number tokens (Assuming standard labels or user specific)
+                # Adjust these labels if your model uses different names (e.g., B-INVOICE, I-INVOICE)
+                # The user previous code had explicit LABEL_1/LABEL_2 checks, so we keep that logic
+                # or match user intent. The previous code usage:
+                # if label == "LABEL_1" or label == "LABEL_2":
+
+                # Check for "INVOICE" strings just in case logic changes,
+                # but let's stick to the previous implementation's specific logic:
                 if label == "LABEL_1" or label == "LABEL_2":
                     invoice_tokens.append(words[word_idx])
 

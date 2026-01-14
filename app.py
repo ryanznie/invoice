@@ -9,8 +9,6 @@ import os
 import logging
 from dotenv import load_dotenv
 import gradio as gr
-
-# Import from src modules
 from src import app, create_gradio_interface, load_model, DEVICE, MODEL_PATH
 
 load_dotenv()
