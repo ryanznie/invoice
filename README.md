@@ -204,10 +204,40 @@ The easiest way to configure the application:
    DEVICE=mps
    ```
 
-3. Start the application (automatically loads `.env`):
    ```bash
    docker-compose up -d
    ```
+
+### Inference Backend Configuration
+
+The application supports both local ONNX Runtime (default) and remote Triton Inference Server.
+
+**1. Local ONNX (Default)**
+No extra configuration needed.
+
+**2. Triton Inference Server**
+
+First, create the model repository structure:
+```bash
+python scripts/setup_triton_repo.py --model_path models/layoutlmv3-lora-invoice-number
+```
+
+Then start the server:
+```bash
+docker run --rm -p 8000:8000 -p 8001:8001 -p 8002:8002 \
+  -v $(pwd)/triton_model_repo:/models \
+  nvcr.io/nvidia/tritonserver:23.10-py3 \
+  tritonserver --model-repository=/models
+```
+
+Configure `.env` and run `python app.py` to use the API:
+```bash
+INFERENCE_BACKEND=triton
+TRITON_URL=localhost:8000
+TRITON_MODEL_NAME=layoutlmv3-lora-invoice-number
+```
+
+
 
 ### Available Environment Variables
 
