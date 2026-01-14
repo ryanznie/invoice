@@ -1,6 +1,6 @@
 [project]
 name = "invoice"
-version = "0.2.3"
+version = "0.3.0"
 description = "Finetuned LayoutLMv3 model for invoice number extraction"
 authors = [{ name = "Ryan Z. Nie", email = "ryanznie@gatech.edu" }]
 readme = "README.md"
