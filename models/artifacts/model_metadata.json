@@ -3,7 +3,7 @@
   "base_model": "microsoft/layoutlmv3-base",
   "num_labels": 3,
   "max_length": 512,
-  "onnx_opset_version": 14,
+  "onnx_opset_version": 17,
   "input_names": [
     "pixel_values",
     "input_ids",
