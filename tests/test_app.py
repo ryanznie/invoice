@@ -358,12 +358,12 @@ class TestCreateAnnotatedImage:
 class TestPredictInvoice:
     """Test suite for predict_invoice function"""
 
-    @patch("src.inference.session")
+    @patch("src.inference.backend")
     @patch("src.inference.processor")
     def test_predict_valid_input(
         self,
         mock_processor,
-        mock_session,
+        mock_backend,
         sample_image,
         sample_words,
         sample_boxes_normalized,
@@ -415,7 +415,8 @@ class TestPredictInvoice:
                 ]
             ]
         )
-        mock_session.run.return_value = [mock_logits]
+        # Mock backend output (logits ndarray)
+        mock_backend.predict.return_value = mock_logits
 
         # Run prediction
         result = predict_invoice(sample_image, sample_words, sample_boxes_normalized)
@@ -438,7 +439,7 @@ class TestPredictInvoice:
     ):
         """Test prediction when model (session) is not loaded"""
         with (
-            patch("src.inference.session", None),
+            patch("src.inference.backend", None),
             patch("src.inference.processor", None),
         ):
             with pytest.raises(ValueError, match="Model not loaded"):
@@ -447,7 +448,7 @@ class TestPredictInvoice:
     def test_predict_wrong_image_type(self, sample_words, sample_boxes_normalized):
         """Test with wrong image type - will fail at image.size access"""
         with (
-            patch("src.inference.session", Mock()),
+            patch("src.inference.backend", Mock()),
             patch("src.inference.processor", Mock()),
         ):
             with pytest.raises(AttributeError):  # 'str' object has no attribute 'size'
@@ -460,7 +461,7 @@ class TestPredictInvoice:
         invalid_img = Image.new("RGB", (0, 0))
 
         with (
-            patch("src.inference.session", Mock()),
+            patch("src.inference.backend", Mock()),
             patch("src.inference.processor", Mock()),
         ):
             with pytest.raises(ValueError, match="Invalid image dimensions"):
@@ -469,7 +470,7 @@ class TestPredictInvoice:
     def test_predict_empty_words(self, sample_image, sample_boxes_normalized):
         """Test with empty words list"""
         with (
-            patch("src.inference.session", Mock()),
+            patch("src.inference.backend", Mock()),
             patch("src.inference.processor", Mock()),
         ):
             with pytest.raises(ValueError, match="Words list cannot be empty"):
@@ -478,7 +479,7 @@ class TestPredictInvoice:
     def test_predict_wrong_words_type(self, sample_image, sample_boxes_normalized):
         """Test with wrong type for words - will fail at len() comparison"""
         with (
-            patch("src.inference.session", Mock()),
+            patch("src.inference.backend", Mock()),
             patch("src.inference.processor", Mock()),
         ):
             # String has different length than boxes, will fail at mismatch check
@@ -488,7 +489,7 @@ class TestPredictInvoice:
     def test_predict_non_string_words(self, sample_image, sample_boxes_normalized):
         """Test with non-string elements in words"""
         with (
-            patch("src.inference.session", Mock()),
+            patch("src.inference.backend", Mock()),
             patch("src.inference.processor", Mock()),
         ):
             with pytest.raises(TypeError, match="All words must be strings"):
@@ -499,7 +500,7 @@ class TestPredictInvoice:
     def test_predict_wrong_boxes_type(self, sample_image, sample_words):
         """Test with wrong type for boxes - will fail at len() comparison"""
         with (
-            patch("src.inference.session", Mock()),
+            patch("src.inference.backend", Mock()),
             patch("src.inference.processor", Mock()),
         ):
             # String has different length than words, will fail at mismatch check
@@ -511,7 +512,7 @@ class TestPredictInvoice:
     ):
         """Test with mismatched words and boxes lengths"""
         with (
-            patch("src.inference.session", Mock()),
+            patch("src.inference.backend", Mock()),
             patch("src.inference.processor", Mock()),
         ):
             with pytest.raises(ValueError, match="Mismatch"):
@@ -523,7 +524,7 @@ class TestPredictInvoice:
         invalid_boxes = [[100, 100, 200]]  # Only 3 coordinates
 
         with (
-            patch("src.inference.session", Mock()),
+            patch("src.inference.backend", Mock()),
             patch("src.inference.processor", Mock()),
         ):
             with pytest.raises(ValueError, match="Box 0 must be a list of 4 integers"):
@@ -535,7 +536,7 @@ class TestPredictInvoice:
         invalid_boxes = [[100, 100, 1500, 120]]  # 1500 > 1000
 
         with (
-            patch("src.inference.session", Mock()),
+            patch("src.inference.backend", Mock()),
             patch("src.inference.processor", Mock()),
         ):
             with pytest.raises(ValueError, match="Box 0 coordinates must be in range"):
@@ -547,7 +548,7 @@ class TestPredictInvoice:
         invalid_boxes = [[200, 100, 100, 120]]  # x0 > x1
 
         with (
-            patch("src.inference.session", Mock()),
+            patch("src.inference.backend", Mock()),
             patch("src.inference.processor", Mock()),
         ):
             with pytest.raises(ValueError, match="Box 0 has invalid geometry"):
@@ -559,7 +560,7 @@ class TestPredictInvoice:
         invalid_boxes = [["100", "100", "200", "120"]]  # Strings instead of numbers
 
         with (
-            patch("src.inference.session", Mock()),
+            patch("src.inference.backend", Mock()),
             patch("src.inference.processor", Mock()),
         ):
             with pytest.raises(TypeError, match="Box 0 coordinates must be numeric"):
