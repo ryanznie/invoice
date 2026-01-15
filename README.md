@@ -24,6 +24,7 @@ invoice-ner/
 ├── pyproject.toml              # Python project configuration & dependencies
 ├── setup.sh                    # Development environment setup script
 ├── .env.example                # Environment variables template
+├── uv.lock                     # Lock file for reproducible installs
 │
 ├── data/                       # Dataset and labeling tools
 │   ├── app.py                  # Streamlit labeling application
@@ -35,28 +36,36 @@ invoice-ner/
 │   └── test_labels.json        # Test data labels
 │
 ├── models/                     # Model files and checkpoints
+│   ├── artifacts/              # Exported models (ONNX, etc.)
 │   └── layoutlmv3-lora-invoice-number/  # Fine-tuned LoRA adapter
 │       ├── adapter_config.json
 │       ├── adapter_model.safetensors
 │       └── ...
 │
+├── triton_model_repo/          # Triton Inference Server model repository
+│   └── ...
+│
 ├── notebooks/                  # Jupyter notebooks for experimentation
 │   ├── 01_heuristics.ipynb     # Heuristic-based extraction
 │   ├── 02_labeling.ipynb       # Data labeling analysis
 │   ├── 03_inference.ipynb      # Model inference testing
-│   └── 04_postprocess.ipynb    # Post-processing experiments
+│   ├── 04_postprocess.ipynb    # Post-processing experiments
+│   └── 05_evaluations.ipynb    # Evaluation metrics and analysis
 │
 ├── benchmarks/                 # Benchmarking suite
 │   ├── models/                 # Model wrappers (Gemini, ONNX, etc.)
+│   ├── benchmark_results/      # Benchmark run results
 │   ├── benchmark.py            # Main benchmark script
 │   └── README.md               # Benchmarking documentation
 │
 ├── scripts/                    # Utility scripts
 │   ├── preprocess.py           # Data preprocessing utilities
-│   └── train.py
+│   ├── export_to_onnx.py       # ONNX export script
+│   ├── setup_triton_repo.py    # Triton repo setup script
+│   └── train.py                # Model training script
 │
 ├── src/                        # Core application modules
-│   ├── __init__.py              # Package initialization
+│   ├── __init__.py
 │   ├── api.py                   # FastAPI endpoints
 │   ├── gradio_ui.py             # Gradio interface
 │   ├── inference.py             # Model inference logic

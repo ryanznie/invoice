@@ -17,8 +17,12 @@ services:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
-      - DEVICE=${DEVICE:-cpu}
+      - DEVICE=cpu
       - LOG_LEVEL=${LOG_LEVEL:-info}
+      - INFERENCE_BACKEND=triton
+      - TRITON_URL=tritonserver:8000
+    depends_on:
+      - tritonserver
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7860/health"]
@@ -35,6 +39,22 @@ services:
         reservations:
           cpus: '${DOCKER_CPU_RESERVATION:-2}'
           memory: ${DOCKER_MEMORY_RESERVATION:-4G}
+
+  tritonserver:
+    image: nvcr.io/nvidia/tritonserver:23.10-py3
+    container_name: triton-server
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+      - "8002:8002"
+    volumes:
+      - ./triton_model_repo:/models
+    command: ["tritonserver", "--model-repository=/models"]
+    deploy:
+      resources:
+        limits:
+          cpus: '${TRITON_CPU_LIMIT:-4}'
+          memory: ${TRITON_MEMORY_LIMIT:-8G}
 
 networks:
   default:

@@ -279,6 +279,8 @@ pre-commit autoupdate
 
 ### Docker Build
 
+The Dockerfile has been optimized for inference, excluding heavy training dependencies (`peft`, `datasets`, etc.) to reduce image size.
+
 ```bash
 # Build image
 docker build -t invoice-ner:latest .
@@ -286,8 +288,23 @@ docker build -t invoice-ner:latest .
 # Build with specific tag
 docker build -t invoice-ner:v1.0.0 .
 
-# Build with no cache
+# Build with no cache (useful if you changed dependencies)
 docker build --no-cache -t invoice-ner:latest .
+```
+
+### Running with Docker Compose
+
+Docker Compose is the recommended way to run the application as it handles the model server (Triton) and application services together.
+
+```bash
+# Start all services (detached mode)
+docker-compose up -d --build
+
+# View logs
+docker-compose logs -f
+
+# Stop all services
+docker-compose down
 ```
 
 ### Production Deployment Considerations
@@ -309,7 +326,7 @@ FROM python:3.10-slim as builder
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN pip install uv && \
-    uv pip install --system --no-cache torch && \
+    uv pip install --system --no-cache torch --index-url https://download.pytorch.org/whl/cpu && \
     uv pip install --system --no-cache -e .
 
 # Runtime stage
