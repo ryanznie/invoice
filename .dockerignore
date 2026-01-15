@@ -46,13 +46,11 @@ data/
 !data/.gitignore
 
 # Models (will be mounted as volume or downloaded)
-# Keep the model directory structure but exclude large files
-models/**/*.bin
-models/**/*.safetensors
-models/**/*.onnx
+models/
 
 # Logs
 *.log
+wandb/
 
 # OS
 .DS_Store
@@ -62,6 +60,8 @@ Thumbs.db
 Dockerfile
 docker-compose.yml
 .dockerignore
+triton_model_repo/
+artifacts/
 
 # CI/CD
 .github/

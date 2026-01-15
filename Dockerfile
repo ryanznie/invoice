@@ -19,16 +19,12 @@ COPY pyproject.toml uv.lock* ./
 
 # Install Python dependencies directly (not editable to avoid README requirement)
 # Note: We'll use CPU-only PyTorch for Docker to reduce image size
+# Split install to avoid huge layer commit fails
 RUN uv pip install --system --no-cache \
-    torch --index-url https://download.pytorch.org/whl/cpu && \
-    uv pip install --system --no-cache \
+    torch --index-url https://download.pytorch.org/whl/cpu
+
+RUN uv pip install --system --no-cache \
     transformers \
-    peft \
-    accelerate \
-    datasets \
-    evaluate \
-    scikit-learn \
-    seqeval \
     fastapi \
     uvicorn[standard] \
     gradio \
@@ -37,7 +33,8 @@ RUN uv pip install --system --no-cache \
     pandas \
     tqdm \
     onnx \
-    onnxruntime
+    onnxruntime \
+    tritonclient[http]
 
 # Copy application code
 COPY . .
