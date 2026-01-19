@@ -4,7 +4,7 @@ Named Entity Recognition (NER) for invoice processing using LayoutLMv3 with LoRA
 
 ## ✨ Features
 
-- 🤖 **Hybrid Extraction Pipeline** - Combines fast heuristic pattern matching with deep learning fallback
+- 🤖 **Hybrid Extraction Pipeline** - Combines fast heuristic pattern matching with deep learning fallback (LayoutLMv3 & Gemini 2.5 Flash)
 - 🎯 **LayoutLMv3 with LoRA** - Efficient fine-tuning on multimodal document understanding
 - 🌐 **Dual Interface** - REST API for programmatic access + Gradio UI for interactive use
 - 🚀 **Production Ready** - Comprehensive test suite (107 tests), Docker support, health checks
