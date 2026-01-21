@@ -11,6 +11,7 @@ from transformers import LayoutLMv3Processor
 import onnxruntime as ort
 from abc import ABC, abstractmethod
 import tritonclient.http as httpclient
+from .gemini import GeminiClient
 
 from .validation import validate_image, validate_words, validate_boxes
 
@@ -61,6 +62,7 @@ logger.debug(f"Using device: {DEVICE} with providers: {PROVIDERS}")
 processor = None
 backend = None
 model = None  # Alias for backward compatibility (ONNX session)
+gemini_client = None
 
 # ============================================================================
 # BACKEND ABSTRACTION
@@ -258,6 +260,13 @@ def load_model():
         global model
         model = backend.session
 
+    # Initialize Gemini Client for fallback
+    global gemini_client
+    gemini_client = GeminiClient()
+    # We do a lazy load in predict, but we can verify API key here if needed
+    if not os.getenv("GOOGLE_API_KEY"):
+        logger.warning("GOOGLE_API_KEY not found. Gemini fallback will be disabled.")
+
 
 # ============================================================================
 # INFERENCE FUNCTION
@@ -299,7 +308,42 @@ def predict_invoice(
     }
 
     # Inference via Backend
-    logits = backend.predict(inputs)
+    try:
+        logits = backend.predict(inputs)
+    except Exception as e:
+        logger.error(f"Primary model failed: {e}")
+        logger.info("🔄 Attempting fallback to Gemini...")
+
+        if gemini_client:
+            # Fallback to Gemini
+            gemini_result = gemini_client.predict(image=image, words=words)
+
+            if gemini_result.get("error"):
+                logger.error(f"Gemini fallback also failed: {gemini_result['error']}")
+                raise e  # Re-raise original error if fallback fails
+
+            # Construct result compatible with existing pipeline
+            if gemini_result["invoice_number"]:
+                # Create labels with HEURISTIC_MATCH style (or just generic)
+                # Since we don't have token-level predictions, we'll mark all as LABEL_0
+                # effectively bypassing the token visualization for the fallback result
+                # but returning the correct extracted value.
+                invoice_number = gemini_result["invoice_number"]
+                logger.info(f"Gemini extracted: {invoice_number}")
+
+                return {
+                    "words": words,
+                    "labels": ["LABEL_0"] * len(words),  # Dummy labels
+                    "invoice_number": invoice_number,
+                    "confidence_scores": [0.0] * len(words),
+                    "method": "gemini",
+                }
+            else:
+                # Gemini returned nothing
+                logger.warning("Gemini found no invoice number.")
+                raise e
+        else:
+            raise e
 
     # Post-processing
     predictions = np.argmax(logits, axis=2)

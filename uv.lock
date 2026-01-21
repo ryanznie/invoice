@@ -1926,17 +1926,11 @@ wheels = [
 
 [[package]]
 name = "invoice"
-version = "0.2.3"
+version = "0.3.0"
 source = { editable = "." }
 dependencies = [
-    { name = "accelerate" },
-    { name = "datasets" },
-    { name = "dvc" },
-    { name = "evaluate" },
     { name = "fastapi" },
-    { name = "google-genai" },
     { name = "gradio" },
-    { name = "ipykernel" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "onnx" },
@@ -1944,57 +1938,68 @@ dependencies = [
     { name = "onnxruntime" },
     { name = "onnxruntime-tools" },
     { name = "pandas" },
-    { name = "peft" },
     { name = "pillow" },
-    { name = "pre-commit" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
     { name = "python-dotenv" },
-    { name = "pyyaml" },
-    { name = "scikit-learn" },
-    { name = "seqeval" },
-    { name = "streamlit" },
     { name = "torch" },
     { name = "tqdm" },
     { name = "transformers" },
     { name = "tritonclient", extra = ["http"] },
     { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "accelerate" },
+    { name = "datasets" },
+    { name = "dvc" },
+    { name = "evaluate" },
+    { name = "google-genai" },
+    { name = "ipykernel" },
+    { name = "peft" },
+    { name = "pre-commit" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pyyaml" },
+    { name = "scikit-learn" },
+    { name = "seqeval" },
+    { name = "streamlit" },
     { name = "wandb" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "accelerate" },
-    { name = "datasets" },
-    { name = "dvc", specifier = ">=3.63.0" },
-    { name = "evaluate" },
+    { name = "accelerate", marker = "extra == 'dev'" },
+    { name = "datasets", marker = "extra == 'dev'" },
+    { name = "dvc", marker = "extra == 'dev'", specifier = ">=3.63.0" },
+    { name = "evaluate", marker = "extra == 'dev'" },
     { name = "fastapi", specifier = ">=0.104.0" },
-    { name = "google-genai" },
+    { name = "google-genai", marker = "extra == 'dev'" },
     { name = "gradio", specifier = ">=4.0.0" },
-    { name = "ipykernel", specifier = ">=6.30.1" },
+    { name = "ipykernel", marker = "extra == 'dev'", specifier = ">=6.30.1" },
     { name = "numpy", specifier = ">=1.24.0" },
     { name = "onnx", specifier = ">=1.15.0" },
     { name = "onnxconverter-common", specifier = ">=1.14.0" },
     { name = "onnxruntime", specifier = ">=1.16.0" },
     { name = "onnxruntime-tools", specifier = ">=1.7.0" },
     { name = "pandas", specifier = ">=2.3.2" },
-    { name = "peft" },
+    { name = "peft", marker = "extra == 'dev'" },
     { name = "pillow", specifier = ">=11.3.0" },
-    { name = "pre-commit", specifier = ">=4.3.0" },
-    { name = "pytest", specifier = ">=8.0.0" },
-    { name = "pytest-cov", specifier = ">=4.1.0" },
+    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.3.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.1.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
-    { name = "pyyaml", specifier = ">=6.0.0" },
-    { name = "scikit-learn" },
-    { name = "seqeval", specifier = ">=1.2.2" },
-    { name = "streamlit", specifier = ">=1.49.1" },
+    { name = "pyyaml", marker = "extra == 'dev'", specifier = ">=6.0.0" },
+    { name = "scikit-learn", marker = "extra == 'dev'" },
+    { name = "seqeval", marker = "extra == 'dev'", specifier = ">=1.2.2" },
+    { name = "streamlit", marker = "extra == 'dev'", specifier = ">=1.49.1" },
     { name = "torch" },
     { name = "tqdm", specifier = ">=4.67.1" },
     { name = "transformers" },
     { name = "tritonclient", extras = ["http"], specifier = ">=2.41.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.24.0" },
-    { name = "wandb", specifier = ">=0.16.0" },
+    { name = "wandb", marker = "extra == 'dev'", specifier = ">=0.16.0" },
 ]
+provides-extras = ["dev"]
 
 [[package]]
 name = "ipykernel"

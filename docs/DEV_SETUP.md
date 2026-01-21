@@ -179,8 +179,12 @@ All configuration is managed through environment variables. Copy `.env.example` 
 | `BASE_MODEL` | `microsoft/layoutlmv3-base` | Base model identifier |
 | `MAX_LENGTH` | `512` | Maximum sequence length for model input |
 | `NUM_LABELS` | `3` | Number of NER labels (O, B-INVOICE_NUMBER, I-INVOICE_NUMBER) |
+| `GOOGLE_API_KEY` | `""` | API Key for Gemini fallback (uses `gemini-2.5-flash`) |
 
 #### Server Configuration
+
+> [!NOTE]
+> **Gemini Fallback**: If the primary local model fails, the system automatically attempts to extract the invoice number using Google's `gemini-2.5-flash` model. This requires the `GOOGLE_API_KEY` environment variable to be set.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -279,8 +283,6 @@ pre-commit autoupdate
 
 ### Docker Build
 
-The Dockerfile has been optimized for inference, excluding heavy training dependencies (`peft`, `datasets`, etc.) to reduce image size.
-
 ```bash
 # Build image
 docker build -t invoice-ner:latest .
@@ -288,7 +290,7 @@ docker build -t invoice-ner:latest .
 # Build with specific tag
 docker build -t invoice-ner:v1.0.0 .
 
-# Build with no cache (useful if you changed dependencies)
+# Build with no cache
 docker build --no-cache -t invoice-ner:latest .
 ```
 
