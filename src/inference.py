@@ -372,14 +372,7 @@ def predict_invoice(
                 predicted_labels.append(label)
                 word_confidences.append(conf)
 
-                # Extract invoice number tokens (Assuming standard labels or user specific)
-                # Adjust these labels if your model uses different names (e.g., B-INVOICE, I-INVOICE)
-                # The user previous code had explicit LABEL_1/LABEL_2 checks, so we keep that logic
-                # or match user intent. The previous code usage:
-                # if label == "LABEL_1" or label == "LABEL_2":
-
-                # Check for "INVOICE" strings just in case logic changes,
-                # but let's stick to the previous implementation's specific logic:
+                # Extract invoice number tokens
                 if label == "LABEL_1" or label == "LABEL_2":
                     invoice_tokens.append(words[word_idx])
 
