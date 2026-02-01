@@ -125,12 +125,10 @@ class OnnxBackend(InferenceBackend):
 
 class TritonBackend(InferenceBackend):
     def __init__(self):
-        # We don't store client state to avoid threading issues with gevent
         self.model_name = TRITON_MODEL_NAME
         self.model_version = TRITON_MODEL_VERSION
 
     def load(self, model_path: str):
-        # We ignore model_path for Triton connection, but we can verify server health
         print(f"🚀 Connecting to Triton Server at {TRITON_URL}...")
         try:
             # Create a temporary client for health check
@@ -160,34 +158,15 @@ class TritonBackend(InferenceBackend):
         # Prepare Triton inputs
         triton_inputs = []
         for name, data in inputs.items():
-            # Map input names if necessary (LayoutLMv3 usually uses standard names)
-            # data matches numpy array
-            # Create InferInput
-            # Helper to map numpy types to triton types string if needed,
-            # but set_data_from_numpy handles it usually if type is standard.
-
-            # Explicit type conversion might be safer since Triton follows strong typing
-            triton_type = self._get_triton_datatype(data.dtype)
-            infer_input = httpclient.InferInput(name, data.shape, triton_type)
+            infer_input = httpclient.InferInput(
+                name, data.shape, self._get_triton_datatype(data.dtype)
+            )
             infer_input.set_data_from_numpy(data)
             triton_inputs.append(infer_input)
 
         try:
             response = client.infer(model_name=self.model_name, inputs=triton_inputs)
-            # We assume the first output is logits, or look for 'logits' if available
-            # If we don't specify outputs, it returns all.
-            # Let's try to get 'logits' or fall back to the first available output
-
-            # Note: response.as_numpy(name) requires output name.
-            # We can inspect response.get_output(name) but we need names first.
-
-            # Get model metadata to find output name if strictly needed,
-            # but standard is often 'logits'. Let's trust the server returns what we need
-            # or use the first output since we only expect one main output (logits).
-
-            # with httpclient, response is a wrapper
-
-            # response.get_response() is metadata JSON
+            # Return the first output (logits)
             output_name = response.get_response()["outputs"][0]["name"]
             return response.as_numpy(output_name)
 
@@ -196,7 +175,6 @@ class TritonBackend(InferenceBackend):
             raise
 
     def _get_triton_datatype(self, numpy_dtype):
-        # Simple mapper, extend as needed
         if numpy_dtype == np.int64:
             return "INT64"
         if numpy_dtype == np.int32:
@@ -205,7 +183,7 @@ class TritonBackend(InferenceBackend):
             return "FP32"
         if numpy_dtype == np.float64:
             return "FP64"
-        return "FP32"  # Fallback/Assumption
+        return "FP32"  # Fallback
 
 
 # ============================================================================
