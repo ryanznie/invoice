@@ -35,8 +35,8 @@ uv pip list || echo "Failed to list installed packages, continuing..."
 
 # Step 7: Optionally initialize pre-commit hooks
 if [ -f ".pre-commit-config.yaml" ]; then
-    echo "Installing pre-commit hooks..."
-    pre-commit install || echo "Failed to install pre-commit hooks, continuing..."
+    echo "Installing prek hooks..."
+    prek install || echo "Failed to install prek hooks, continuing..."
 fi
 
 echo "Setup script finished! Virtual environment is in $VENV_DIR"
