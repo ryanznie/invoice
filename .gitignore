@@ -21,3 +21,9 @@ coverage.xml
 
 # Weights and Biases
 wandb/ #logs
+
+# gemini-cli settings
+.gemini/
+
+# GitHub App credentials
+gha-creds-*.json
