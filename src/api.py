@@ -7,13 +7,16 @@ import os
 import json
 import tempfile
 import logging
+import time
 from typing import List
 from contextlib import asynccontextmanager
 from PIL import Image
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from pydantic import BaseModel
+from prometheus_client import make_asgi_app
 
 from . import inference
+from . import monitoring
 from .heuristics import extract_invoice_heuristics
 from .postprocessing import postprocess_invoice_number
 from .validation import validate_model_extraction
@@ -41,6 +44,9 @@ app = FastAPI(
     description="Finetuned LayoutLMv3 model for extracting invoice numbers",
     lifespan=lifespan,
 )
+
+metrics_app = make_asgi_app()
+app.mount("/metrics", metrics_app)
 
 
 class PredictionRequest(BaseModel):
@@ -159,6 +165,7 @@ def predict(
         logger.info("=" * 60)
 
         # Step 1: Try heuristics first
+        start_time = time.time()
         invoice_number, matched_indices = extract_invoice_heuristics(words, ocr_lines)
 
         if invoice_number:
@@ -170,6 +177,13 @@ def predict(
                 for i in range(len(words))
             ]
             confidence_scores = [1.0] * len(words)
+
+            monitoring.record_inference_metrics(
+                method="heuristic",
+                status="success",
+                duration=time.time() - start_time,
+            )
+
         else:
             # Step 2: Fall back to model
             extraction_method = "model"
