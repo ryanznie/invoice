@@ -7,11 +7,17 @@ import logging
 import numpy as np
 from PIL import Image
 from typing import List, Dict
-from transformers import LayoutLMv3Processor
+from transformers import (
+    LayoutLMv3ImageProcessor,
+    LayoutLMv3Processor,
+    LayoutLMv3TokenizerFast,
+)
 import onnxruntime as ort
 from abc import ABC, abstractmethod
+import time
 import tritonclient.http as httpclient
 from .gemini import GeminiClient
+from . import monitoring
 
 from .validation import validate_image, validate_words, validate_boxes
 
@@ -213,6 +219,48 @@ class TritonBackend(InferenceBackend):
 # ============================================================================
 
 
+def _build_layoutlmv3_processor(processor_path: str) -> LayoutLMv3Processor:
+    """Load LayoutLMv3 processor with a compatibility fallback for newer transformers."""
+    try:
+        return LayoutLMv3Processor.from_pretrained(processor_path, apply_ocr=False)
+    except Exception as exc:
+        if not os.path.isdir(processor_path):
+            raise
+
+        logger.warning(
+            "Falling back to manual LayoutLMv3 processor assembly for %s: %s",
+            processor_path,
+            exc,
+        )
+        image_processor = LayoutLMv3ImageProcessor.from_pretrained(
+            processor_path, apply_ocr=False
+        )
+        tokenizer = LayoutLMv3TokenizerFast.from_pretrained(processor_path)
+        return LayoutLMv3Processor(
+            image_processor=image_processor,
+            tokenizer=tokenizer,
+        )
+
+
+def _processor_candidates(model_path: str, processor_path: str) -> List[str]:
+    candidates = []
+    seen = set()
+
+    for candidate in (
+        processor_path,
+        os.path.dirname(model_path) if os.path.isfile(model_path) else None,
+        "models/artifacts",
+        "models/layoutlmv3-lora-invoice-number",
+        BASE_MODEL,
+    ):
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        candidates.append(candidate)
+
+    return candidates
+
+
 def load_model():
     """Load the model (backend) and processor"""
     global processor, backend
@@ -235,13 +283,20 @@ def load_model():
         print(f"⚠️ MODEL_PATH {model_path} not found.")
 
     # Load processor
-    try:
-        processor = LayoutLMv3Processor.from_pretrained(processor_path, apply_ocr=False)
-        print(f"✅ Processor loaded from {processor_path}")
-    except Exception as e:
-        print(f"⚠️ Could not load processor from {processor_path}: {e}")
-        print(f"   Falling back to base model: {BASE_MODEL}")
-        processor = LayoutLMv3Processor.from_pretrained(BASE_MODEL, apply_ocr=False)
+    processor_errors = []
+    for candidate in _processor_candidates(model_path, processor_path):
+        try:
+            processor = _build_layoutlmv3_processor(candidate)
+            print(f"✅ Processor loaded from {candidate}")
+            break
+        except Exception as e:
+            processor_errors.append(f"{candidate}: {e}")
+            print(f"⚠️ Could not load processor from {candidate}: {e}")
+    else:
+        raise RuntimeError(
+            "Failed to load LayoutLMv3 processor from any known location. Errors: "
+            + " | ".join(processor_errors)
+        )
 
     # Initialize Backend
     print(f"👉 Initializing Inference Backend: {INFERENCE_BACKEND.upper()}")
@@ -279,6 +334,8 @@ def predict_invoice(
     """
     Run inference on invoice using the configured backend
     """
+    start_time = time.time()
+
     # Validate model loaded
     if backend is None or processor is None:
         raise ValueError("Model not loaded. Call load_model() first.")
@@ -299,6 +356,8 @@ def predict_invoice(
         return_tensors="np",
     )
 
+    num_tokens = np.sum(encoding["attention_mask"])
+
     # Prepare inputs dictionary
     inputs = {
         "pixel_values": encoding["pixel_values"],
@@ -312,6 +371,9 @@ def predict_invoice(
         logits = backend.predict(inputs)
     except Exception as e:
         logger.error(f"Primary model failed: {e}")
+        monitoring.record_error(type(e).__name__)
+        monitoring.record_fallback("model_failure", "gemini")
+
         logger.info("🔄 Attempting fallback to Gemini...")
 
         if gemini_client:
@@ -340,6 +402,7 @@ def predict_invoice(
                 }
             else:
                 # Gemini returned nothing
+                monitoring.record_error("GeminiEmptyResult")
                 logger.warning("Gemini found no invoice number.")
                 raise e
         else:
@@ -409,6 +472,23 @@ def predict_invoice(
 
     # Combine invoice tokens
     invoice_number = " ".join(invoice_tokens) if invoice_tokens else None
+
+    avg_conf = 0.0
+    if invoice_tokens:
+        relevant_confs = [
+            conf
+            for conf, label in zip(word_confidences, predicted_labels)
+            if label in ["LABEL_1", "LABEL_2"]
+        ]
+        if relevant_confs:
+            avg_conf = sum(relevant_confs) / len(relevant_confs)
+
+    monitoring.record_ml_metrics(avg_conf, int(num_tokens))
+    monitoring.record_inference_metrics(
+        method="model",
+        status="success",
+        duration=time.time() - start_time,
+    )
 
     return {
         "words": words[: len(predicted_labels)],
