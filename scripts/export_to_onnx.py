@@ -153,6 +153,7 @@ class ONNXExporter:
                 do_constant_folding=True,
                 export_params=True,
                 verbose=False,
+                dynamo=False,  # Force legacy exporter (PyTorch 2.8+ compat)
             )
 
         print(f"  ✓ ONNX model exported to: {onnx_path}")
