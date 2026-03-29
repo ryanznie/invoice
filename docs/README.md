@@ -28,6 +28,13 @@ Testing guide and validation documentation:
 - CI/CD integration
 - Best practices
 
+### 📈 [MONITORING.md](./MONITORING.md)
+Monitoring and load-generation guide:
+- Prometheus and Grafana setup
+- Triton metrics to watch
+- Real-data traffic generation
+- Recommended Grafana panels
+
 ## Quick Links
 
 ### For Developers
@@ -35,11 +42,13 @@ Testing guide and validation documentation:
 - **Setup Environment**: [DEV_SETUP.md](./DEV_SETUP.md)
 - **API Docs**: [API_USAGE.md](./API_USAGE.md)
 - **Run Tests**: [TESTING.md](./TESTING.md)
+- **Monitoring**: [MONITORING.md](./MONITORING.md)
 
 ### For Production
 - **API Reference**: [API_USAGE.md](./API_USAGE.md)
 - **Testing & Validation**: [TESTING.md](./TESTING.md)
 - **Docker Deployment**: See main [README.md](../README.md)
+- **Monitoring & Dashboards**: [MONITORING.md](./MONITORING.md)
 
 ### For Research
 - **Benchmarking**: [../benchmarks/README.md](../benchmarks/README.md)
@@ -53,6 +62,7 @@ docs/
 ├── README.md                   # This file
 ├── API_USAGE.md                # API documentation
 ├── DEV_SETUP.md                # Development setup
+├── MONITORING.md               # Monitoring and traffic guide
 └── TESTING.md                  # Testing guide
 ```
 

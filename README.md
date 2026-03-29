@@ -190,6 +190,18 @@ curl -X POST http://localhost:7860/predict \
 
 For detailed API documentation with code examples in Python, JavaScript, and more, see **[docs/API_USAGE.md](docs/API_USAGE.md)**.
 
+## 📈 Monitoring and Load Generation
+
+This repository includes Docker Compose services for Prometheus and Grafana, plus Triton metrics on port `8002`.
+
+- Prometheus: `http://localhost:9090`
+- Grafana: `http://localhost:3000`
+- Triton metrics: `http://localhost:8002/metrics`
+
+To make dashboards useful, send repeated requests using the real SROIE sample images and OCR files under `data/SROIE2019/test/`.
+
+For Prometheus setup, traffic generation examples, and recommended Grafana panels, see **[docs/MONITORING.md](docs/MONITORING.md)**.
+
 ## 🔧 Configuration
 
 ### Using .env File (Recommended)
