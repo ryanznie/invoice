@@ -1,4 +1,3 @@
-# Use Python 3.10 slim image as base
 FROM python:3.11.13-slim
 
 # Set working directory
@@ -11,17 +10,19 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv (fast Python package installer)
+# Install uv
 RUN pip install --no-cache-dir uv
 
 # Copy dependency files
 COPY pyproject.toml uv.lock* ./
 
-# Install Python dependencies directly (not editable to avoid README requirement)
+# Install Python dependencies directly
 # Note: We'll use CPU-only PyTorch for Docker to reduce image size
 # Split install to avoid huge layer commit fails
 RUN uv pip install --system --no-cache \
-    torch --index-url https://download.pytorch.org/whl/cpu
+    torch \
+    torchvision \
+    --index-url https://download.pytorch.org/whl/cpu
 
 RUN uv pip install --system --no-cache \
     transformers \
@@ -34,7 +35,9 @@ RUN uv pip install --system --no-cache \
     tqdm \
     onnx \
     onnxruntime \
-    tritonclient[http]
+    tritonclient[http] \
+    google-genai \
+    prometheus-client
 
 # Copy application code
 COPY . .
