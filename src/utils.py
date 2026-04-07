@@ -4,74 +4,17 @@ Utility functions for OCR data parsing and coordinate normalization.
 
 import os
 import logging
+import re
 from typing import List, Dict
 from scripts import split_invoice_string, estimate_word_boxes
 
 logger = logging.getLogger(__name__)
 
 
-def parse_ocr_text_file(file_path: str) -> Dict:
-    """
-    Parse OCR text file format to JSON
-    Uses functions from scripts/preprocess.py for consistency with training data.
-
-    Format: x1,y1,x2,y2,x3,y3,x4,y4,text
-    Example: 83,41,331,41,331,78,83,78,TAN WOON YANN
-
-    Steps:
-    1. Parse each line as a text box
-    2. Split multi-word lines into tokens (split_invoice_string)
-    3. Estimate individual word bounding boxes (estimate_word_boxes)
-
-    Args:
-        file_path: Path to text file
-
-    Returns:
-        Dictionary with words and bboxes
-
-    Raises:
-        ValueError: If file is empty or has invalid format
-        FileNotFoundError: If file does not exist
-    """
-    # Validate file path
-    if not isinstance(file_path, str):
-        raise TypeError(
-            f"Expected string for file_path, got {type(file_path).__name__}"
-        )
-
-    if not file_path:
-        raise ValueError("File path cannot be empty")
-
-    if not os.path.exists(file_path):
-        raise FileNotFoundError(f"File not found: {file_path}")
-    ocr_entries = []
-
-    # Parse file into entries
-    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-        for line in f:
-            parts = line.strip().split(",")
-            if len(parts) < 9:
-                continue
-
-            coords = list(map(int, parts[:8]))
-            text = ",".join(parts[8:]).strip()
-
-            if not text:
-                continue
-
-            # Convert 4-point polygon to bounding box [x0, y0, x1, y1]
-            xs, ys = coords[::2], coords[1::2]
-            bbox = [min(xs), min(ys), max(xs), max(ys)]
-
-            ocr_entries.append({"text": text, "bbox": bbox})
-
-    # Sort by y then x coordinate to ensure reading order
+def _build_word_level_ocr_data(ocr_entries: List[Dict]) -> Dict:
+    """Convert line-level OCR entries into token-level words and boxes."""
     ocr_entries.sort(key=lambda e: (e["bbox"][1], e["bbox"][0]))
-
-    # Keep original lines for heuristic search
     ocr_lines = [entry["text"] for entry in ocr_entries]
-
-    # Split multi-word lines and estimate word boxes
     words = []
     boxes = []
 
@@ -90,7 +33,116 @@ def parse_ocr_text_file(file_path: str) -> Dict:
             words.append(token)
             boxes.append(token_bbox)
 
-    return {"words": words, "bboxes": boxes, "ocr_lines": ocr_lines}
+    return {
+        "words": words,
+        "bboxes": boxes,
+        "ocr_lines": ocr_lines,
+        "raw_text": "\n".join(ocr_lines),
+        "has_boxes": True,
+    }
+
+
+def _parse_coordinate_ocr_lines(lines: List[str]) -> List[Dict]:
+    """Parse OCR lines in the x1,y1,...,x4,y4,text format."""
+    ocr_entries = []
+
+    for line in lines:
+        parts = line.strip().split(",")
+        if len(parts) < 9:
+            continue
+
+        try:
+            coords = list(map(int, parts[:8]))
+        except ValueError:
+            continue
+
+        text = ",".join(parts[8:]).strip()
+        if not text:
+            continue
+
+        xs, ys = coords[::2], coords[1::2]
+        bbox = [min(xs), min(ys), max(xs), max(ys)]
+        ocr_entries.append({"text": text, "bbox": bbox})
+
+    return ocr_entries
+
+
+def _parse_plain_ocr_text(text: str) -> Dict:
+    """Parse OCR-like raw text that does not include coordinates."""
+    cleaned_lines = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        lowered = stripped.lower()
+        if lowered in {"system", "user", "assistant"}:
+            continue
+
+        stripped = re.sub(r"<[^>]+>", " ", stripped)
+        stripped = stripped.replace("**", " ")
+        stripped = re.sub(r"\s+", " ", stripped).strip()
+        if not stripped:
+            continue
+
+        cleaned_lines.append(stripped)
+
+    words = []
+    for line in cleaned_lines:
+        words.extend(split_invoice_string(line))
+
+    return {
+        "words": words,
+        "bboxes": [],
+        "ocr_lines": cleaned_lines,
+        "raw_text": "\n".join(cleaned_lines),
+        "has_boxes": False,
+    }
+
+
+def parse_ocr_text_content(text: str) -> Dict:
+    """
+    Parse OCR text content with or without coordinates.
+
+    Coordinate format:
+        x1,y1,x2,y2,x3,y3,x4,y4,text
+
+    Raw text format:
+        free-form OCR output with line breaks and no coordinates.
+    """
+    if not isinstance(text, str):
+        raise TypeError(f"Expected string for text, got {type(text).__name__}")
+
+    if not text.strip():
+        raise ValueError("OCR text content cannot be empty")
+
+    lines = text.splitlines()
+    ocr_entries = _parse_coordinate_ocr_lines(lines)
+    if ocr_entries:
+        return _build_word_level_ocr_data(ocr_entries)
+
+    return _parse_plain_ocr_text(text)
+
+
+def parse_ocr_text_file(file_path: str) -> Dict:
+    """
+    Parse OCR text file content with or without coordinates.
+
+    Returns token-level words and, when available, estimated bounding boxes.
+    """
+    if not isinstance(file_path, str):
+        raise TypeError(
+            f"Expected string for file_path, got {type(file_path).__name__}"
+        )
+
+    if not file_path:
+        raise ValueError("File path cannot be empty")
+
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"File not found: {file_path}")
+
+    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+        return parse_ocr_text_content(f.read())
 
 
 def normalize_boxes(

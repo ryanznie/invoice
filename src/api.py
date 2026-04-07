@@ -3,12 +3,10 @@ FastAPI endpoints for Invoice NER API.
 """
 
 import io
-import os
 import json
-import tempfile
 import logging
 import time
-from typing import List
+from typing import List, Optional
 from contextlib import asynccontextmanager
 from PIL import Image
 from fastapi import FastAPI, File, UploadFile, HTTPException
@@ -20,7 +18,7 @@ from . import monitoring
 from .heuristics import extract_invoice_heuristics
 from .postprocessing import postprocess_invoice_number
 from .validation import validate_model_extraction
-from .utils import parse_ocr_text_file, normalize_boxes
+from .utils import parse_ocr_text_content, normalize_boxes
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +66,10 @@ async def health_check():
 
 @app.post("/predict")
 def predict(
-    image: UploadFile = File(..., description="Invoice image file (JPG, PNG, etc.)"),
+    image: Optional[UploadFile] = File(
+        None,
+        description="Invoice image file (JPG, PNG, etc.). Optional for raw OCR text without coordinates.",
+    ),
     ocr_file: UploadFile = File(..., description="OCR data file (TXT or JSON format)"),
 ):
     """
@@ -83,23 +84,27 @@ def predict(
     Returns:
         JSON with extracted invoice number, method used, and detailed predictions
     """
-    if inference.backend is None or inference.processor is None:
-        raise HTTPException(status_code=503, detail="Model not loaded")
-
     try:
-        # Read and validate image
-        image_bytes = image.file.read()
-        try:
-            pil_image = Image.open(io.BytesIO(image_bytes))
-            pil_image = pil_image.convert("RGB")
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Invalid image file: {str(e)}")
+        pil_image = None
+        img_width = None
+        img_height = None
+        if image is not None:
+            image_bytes = image.file.read()
+            try:
+                pil_image = Image.open(io.BytesIO(image_bytes))
+                pil_image = pil_image.convert("RGB")
+            except Exception as e:
+                raise HTTPException(
+                    status_code=400, detail=f"Invalid image file: {str(e)}"
+                )
 
-        img_width, img_height = pil_image.size
+            img_width, img_height = pil_image.size
 
         # Read and parse OCR file
         ocr_bytes = ocr_file.file.read()
         ocr_filename = ocr_file.filename.lower()
+        raw_text = None
+        has_boxes = False
 
         try:
             if ocr_filename.endswith(".json"):
@@ -108,6 +113,8 @@ def predict(
                 words = ocr_data.get("words", [])
                 boxes = ocr_data.get("bboxes", ocr_data.get("boxes", []))
                 ocr_lines = ocr_data.get("ocr_lines", None)
+                raw_text = ocr_data.get("raw_text")
+                has_boxes = bool(boxes)
 
                 # Check if boxes need normalization
                 needs_normalization = (
@@ -116,30 +123,33 @@ def predict(
                     else False
                 )
                 if needs_normalization:
+                    if pil_image is None or img_width is None or img_height is None:
+                        raise HTTPException(
+                            status_code=400,
+                            detail="Image file is required to normalize pixel-coordinate OCR data",
+                        )
                     logger.info(
                         "Detected pixel coordinates in JSON, normalizing to 0-1000 range"
                     )
                     boxes = normalize_boxes(boxes, img_width, img_height)
 
             elif ocr_filename.endswith(".txt"):
-                # Parse text file - save to temp file for parse_ocr_text_file
-                with tempfile.NamedTemporaryFile(
-                    mode="w", suffix=".txt", delete=False, encoding="utf-8"
-                ) as tmp:
-                    tmp.write(ocr_bytes.decode("utf-8", errors="ignore"))
-                    tmp_path = tmp.name
+                ocr_data = parse_ocr_text_content(
+                    ocr_bytes.decode("utf-8", errors="ignore")
+                )
+                words = ocr_data["words"]
+                boxes = ocr_data["bboxes"]
+                ocr_lines = ocr_data.get("ocr_lines", None)
+                raw_text = ocr_data.get("raw_text")
+                has_boxes = ocr_data.get("has_boxes", False)
 
-                try:
-                    ocr_data = parse_ocr_text_file(tmp_path)
-                    words = ocr_data["words"]
-                    boxes = ocr_data["bboxes"]
-                    ocr_lines = ocr_data.get("ocr_lines", None)
-
-                    # Normalize boxes to 0-1000 range
+                if has_boxes:
+                    if pil_image is None or img_width is None or img_height is None:
+                        raise HTTPException(
+                            status_code=400,
+                            detail="Image file is required when OCR text includes coordinates",
+                        )
                     boxes = normalize_boxes(boxes, img_width, img_height)
-                finally:
-                    # Clean up temp file
-                    os.unlink(tmp_path)
             else:
                 raise HTTPException(
                     status_code=400, detail="OCR file must be .txt or .json format"
@@ -152,10 +162,8 @@ def predict(
                 status_code=400, detail=f"Error parsing OCR file: {str(e)}"
             )
 
-        if not words or not boxes:
-            raise HTTPException(
-                status_code=400, detail="OCR file must contain valid words and bboxes"
-            )
+        if not words:
+            raise HTTPException(status_code=400, detail="OCR file must contain text")
 
         logger.info("=" * 60)
         logger.info("API: Starting invoice extraction pipeline")
@@ -184,8 +192,13 @@ def predict(
                 duration=time.time() - start_time,
             )
 
-        else:
+        elif has_boxes:
             # Step 2: Fall back to model
+            if pil_image is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Image file is required when heuristics fail on coordinate-based OCR input",
+                )
             extraction_method = "model"
             logger.info("🤖 Falling back to LayoutLMv3 model inference")
             result = inference.predict_invoice(pil_image, words, boxes)
@@ -209,6 +222,50 @@ def predict(
                         f"✗ Rejected model extraction '{invoice_number}': no letters or numbers"
                     )
                 invoice_number = None
+        else:
+            extraction_method = "gemini"
+            logger.info(
+                "✍️ No coordinates provided. Falling back to Gemini text extraction"
+            )
+            monitoring.record_fallback("no_coordinates", "gemini")
+
+            if inference.gemini_client is None:
+                raise HTTPException(
+                    status_code=503, detail="Gemini fallback is not initialized"
+                )
+
+            result = inference.gemini_client.predict(
+                image=pil_image,
+                words=words,
+                raw_text=raw_text,
+            )
+
+            invoice_number = result.get("invoice_number")
+            labels = ["LABEL_0"] * len(words)
+            confidence_scores = [0.0] * len(words)
+
+            if result.get("error"):
+                monitoring.record_error("GeminiTextFallbackError")
+                monitoring.record_inference_metrics(
+                    method="gemini",
+                    status="error",
+                    duration=time.time() - start_time,
+                )
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Gemini fallback failed: {result['error']}",
+                )
+
+            if invoice_number:
+                invoice_number = postprocess_invoice_number(invoice_number)
+                if not validate_model_extraction(invoice_number):
+                    invoice_number = None
+
+            monitoring.record_inference_metrics(
+                method="gemini",
+                status="success" if invoice_number else "error",
+                duration=time.time() - start_time,
+            )
 
         # Final result
         invoice_number = invoice_number or "Not Found"

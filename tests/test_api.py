@@ -186,6 +186,53 @@ class TestIntegrationAPI:
             # Gradio interface should be served
             assert response.status_code == 200
 
+    def test_predict_raw_text_uses_heuristics_without_image(self, client):
+        raw_ocr = """system
+user
+<ocr>
+
+assistant
+Receipt #: CS00082258
+Salesperson: Date. 09/02/2018
+"""
+
+        response = client.post(
+            "/predict",
+            files={"ocr_file": ("test-X51005200931.txt", raw_ocr, "text/plain")},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["invoice_number"] == "CS00082258"
+        assert data["extraction_method"] == "heuristic"
+
+    def test_predict_raw_text_falls_back_to_gemini_without_image(self, client):
+        raw_ocr = """system
+user
+<ocr>
+
+assistant
+Handwritten customer copy
+Reference maybe unclear
+"""
+
+        mock_gemini = Mock()
+        mock_gemini.predict.return_value = {
+            "invoice_number": "HW-7781",
+            "method": "gemini_fallback",
+        }
+
+        with patch("src.inference.gemini_client", mock_gemini):
+            response = client.post(
+                "/predict",
+                files={"ocr_file": ("test-X51005200931.txt", raw_ocr, "text/plain")},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["invoice_number"] == "HW-7781"
+        assert data["extraction_method"] == "gemini"
+
 
 class TestErrorHandling:
     """Test error handling in API"""

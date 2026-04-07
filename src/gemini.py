@@ -53,6 +53,7 @@ class GeminiClient:
         self,
         image: Optional[Image.Image] = None,
         words: Optional[List[str]] = None,
+        raw_text: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Run inference using Gemini API.
@@ -80,6 +81,8 @@ class GeminiClient:
         # Add image or text context
         if image:
             inputs.append(image)
+        elif raw_text:
+            inputs.append(f"\nDocument Text:\n{raw_text}")
         elif words:
             # Reconstruct text from words if raw text not provided
             reconstructed_text = " ".join(words)
