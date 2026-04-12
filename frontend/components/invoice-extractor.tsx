@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, CheckCircle2, Cpu, FileImage, FileText, ScanSearch, Sparkles } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -75,12 +74,12 @@ export function InvoiceExtractor() {
           cache: "no-store",
         });
 
+        const data = (await response.json()) as HealthResponse & { detail?: string };
+
         if (!response.ok) {
-          const data = (await response.json()) as { detail?: string };
           throw new Error(data.detail || "Health check failed.");
         }
 
-        const data = (await response.json()) as HealthResponse;
         setHealth(data);
       } catch (healthError) {
         const message =
@@ -108,7 +107,9 @@ export function InvoiceExtractor() {
   }, [imageFile]);
 
   const highlightedCount = useMemo(
-    () => result?.predictions.filter((prediction) => prediction.is_invoice_number).length ?? 0,
+    () =>
+      result?.predictions.filter((prediction) => prediction.is_invoice_number).length ??
+      0,
     [result],
   );
 
@@ -134,12 +135,12 @@ export function InvoiceExtractor() {
         body: formData,
       });
 
+      const data = (await response.json()) as PredictResponse & { detail?: string };
+
       if (!response.ok) {
-        const data = (await response.json()) as { detail?: string };
         throw new Error(data.detail || "Prediction failed.");
       }
 
-      const data = (await response.json()) as PredictResponse;
       setResult(data);
     } catch (submitError) {
       const message =
@@ -151,287 +152,215 @@ export function InvoiceExtractor() {
   }
 
   return (
-    <main className="min-h-screen px-4 py-10 sm:px-6">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
-        <section className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-          <Card className="overflow-hidden border-none bg-transparent shadow-none">
-            <CardHeader className="rounded-[1.5rem] border border-border/70 bg-card/80 backdrop-blur">
-              <div className="mb-4 flex items-center gap-3">
-                <Badge className="rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.2em]">
-                  Vercel Frontend
-                </Badge>
-                <Badge variant="outline" className="rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.2em]">
-                  shadcn/ui
-                </Badge>
-              </div>
-              <CardTitle className="max-w-2xl text-4xl leading-tight sm:text-5xl">
-                Replace the Gradio demo with a deployable invoice review surface.
-              </CardTitle>
-              <CardDescription className="max-w-2xl text-base text-muted-foreground">
-                Upload an invoice image and OCR payload, run the hybrid extraction pipeline, and inspect token-level predictions with box overlays.
-              </CardDescription>
-            </CardHeader>
-          </Card>
+    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6">
+      <div className="space-y-2">
+        <h1 className="text-2xl font-semibold tracking-tight">Invoice Extraction</h1>
+        <p className="text-sm text-muted-foreground">
+          Upload an invoice image and OCR payload to extract the invoice number.
+        </p>
+      </div>
 
-          <Card className="border-border/70 bg-card/85 backdrop-blur">
+      <Card>
+        <CardContent className="flex flex-col gap-3 p-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <p className="text-sm font-medium">Backend status</p>
+            <p className="text-sm text-muted-foreground">
+              {health
+                ? `Model ${health.model_loaded ? "loaded" : "not loaded"} on ${health.device}`
+                : "Checking backend"}
+            </p>
+          </div>
+          <Badge
+            variant={health?.status === "healthy" ? "default" : "destructive"}
+            className="w-fit"
+          >
+            {health?.status || "unknown"}
+          </Badge>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Upload</CardTitle>
+            <CardDescription>Supported OCR formats: `.txt` and `.json`.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-4" onSubmit={handleSubmit}>
+              <div className="space-y-2">
+                <Label htmlFor="image">Invoice image</Label>
+                <Input
+                  id="image"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/tiff,image/bmp"
+                  onChange={(event) => setImageFile(event.target.files?.[0] || null)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="ocr">OCR payload</Label>
+                <Input
+                  id="ocr"
+                  type="file"
+                  accept=".txt,.json"
+                  onChange={(event) => setOcrFile(event.target.files?.[0] || null)}
+                />
+              </div>
+
+              <div className="rounded-md border bg-muted/40 p-3 text-sm">
+                <p className="truncate">{imageFile?.name || "No image selected"}</p>
+                <p className="mt-1 truncate text-muted-foreground">
+                  {ocrFile?.name || "No OCR file selected"}
+                </p>
+              </div>
+
+              <Button className="w-full" type="submit" disabled={isLoading}>
+                {isLoading ? "Extracting..." : "Extract Invoice Number"}
+              </Button>
+
+              {isLoading ? <Progress value={70} /> : null}
+
+              {error ? (
+                <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                  {error}
+                </div>
+              ) : null}
+            </form>
+          </CardContent>
+        </Card>
+
+        <div className="grid gap-6">
+          <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <ScanSearch className="h-5 w-5 text-primary" />
-                Backend Status
-              </CardTitle>
-              <CardDescription>The frontend proxies requests to your FastAPI deployment through Next.js route handlers.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 text-sm">
-              <div className="flex items-center justify-between rounded-xl bg-secondary/70 p-4">
-                <span className="text-muted-foreground">Request Path</span>
-                <code className="max-w-[60%] truncate text-right text-xs">/api/health, /api/predict</code>
-              </div>
-              <div className="flex items-center justify-between rounded-xl bg-secondary/70 p-4">
-                <span className="text-muted-foreground">Health</span>
-                <Badge variant={health?.status === "healthy" ? "default" : "destructive"}>
-                  {health?.status || "unknown"}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between rounded-xl bg-secondary/70 p-4">
-                <span className="text-muted-foreground">Model Loaded</span>
-                <span>{health?.model_loaded ? "Yes" : "No"}</span>
-              </div>
-              <div className="flex items-center justify-between rounded-xl bg-secondary/70 p-4">
-                <span className="text-muted-foreground">Device</span>
-                <span className="flex items-center gap-2">
-                  <Cpu className="h-4 w-4 text-primary" />
-                  {health?.device || "Unavailable"}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-        </section>
-
-        <section className="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
-          <Card className="bg-card/90 backdrop-blur">
-            <CardHeader>
-              <CardTitle>Run Extraction</CardTitle>
-              <CardDescription>
-                Supports invoice images plus OCR data in `.txt` or `.json`.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form className="space-y-5" onSubmit={handleSubmit}>
-                <div className="space-y-2">
-                  <Label htmlFor="image">Invoice image</Label>
-                  <Input
-                    id="image"
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,image/tiff,image/bmp"
-                    onChange={(event) => setImageFile(event.target.files?.[0] || null)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    JPG, PNG, TIFF, BMP, or WebP.
-                  </p>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <CardTitle>Result</CardTitle>
+                  <CardDescription>
+                    Review the extracted invoice number and matching tokens.
+                  </CardDescription>
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="ocr">OCR payload</Label>
-                  <Input
-                    id="ocr"
-                    type="file"
-                    accept=".txt,.json"
-                    onChange={(event) => setOcrFile(event.target.files?.[0] || null)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Text lines (`x1,y1,x2,y2,x3,y3,x4,y4,text`) or JSON with `words` and `bboxes`.
-                  </p>
-                </div>
-
-                <div className="grid gap-3 rounded-xl border border-dashed border-border p-4 text-sm">
-                  <div className="flex items-center gap-3">
-                    <FileImage className="h-4 w-4 text-primary" />
-                    <span className="truncate">{imageFile?.name || "No image selected"}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <FileText className="h-4 w-4 text-primary" />
-                    <span className="truncate">{ocrFile?.name || "No OCR file selected"}</span>
-                  </div>
-                </div>
-
-                <Button className="w-full" disabled={isLoading} size="lg" type="submit">
-                  {isLoading ? "Extracting..." : "Extract Invoice Number"}
-                </Button>
-
-                {isLoading ? <Progress value={68} /> : null}
-
-                {error ? (
-                  <div className="flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                    <span>{error}</span>
-                  </div>
+                {result ? (
+                  <Badge variant="secondary">{result.extraction_method}</Badge>
                 ) : null}
-              </form>
+              </div>
+            </CardHeader>
+            <CardContent className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_220px]">
+              <div className="space-y-4">
+                <div className="rounded-md border p-4">
+                  <p className="text-sm text-muted-foreground">Invoice number</p>
+                  <p className="mt-2 break-all text-2xl font-semibold">
+                    {result?.invoice_number || "Waiting for prediction"}
+                  </p>
+                </div>
+
+                <div className="relative overflow-hidden rounded-md border bg-muted/20">
+                  {previewUrl ? (
+                    <div className="relative">
+                      <img
+                        alt="Invoice preview"
+                        className="h-auto w-full object-contain"
+                        src={previewUrl}
+                      />
+                      {result?.predictions.map((prediction) => (
+                        <div
+                          key={`${prediction.index}-${prediction.word}`}
+                          className={
+                            prediction.is_invoice_number
+                              ? "absolute border-2 border-primary bg-primary/10"
+                              : "absolute border border-border/70"
+                          }
+                          style={{
+                            left: `${prediction.box[0] / 10}%`,
+                            top: `${prediction.box[1] / 10}%`,
+                            width: `${(prediction.box[2] - prediction.box[0]) / 10}%`,
+                            height: `${(prediction.box[3] - prediction.box[1]) / 10}%`,
+                          }}
+                          title={`${prediction.word} (${prediction.label})`}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex min-h-[320px] items-center justify-center p-6 text-sm text-muted-foreground">
+                      Upload an image to preview annotations.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-3 rounded-md border p-4 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Total words</span>
+                  <span>{result?.total_words ?? 0}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Matched words</span>
+                  <span>{highlightedCount}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Device</span>
+                  <span>{result?.model_device || health?.device || "Unknown"}</span>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
-          <div className="grid gap-6">
-            <Card className="bg-card/90 backdrop-blur">
-              <CardHeader>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <CardTitle>Extraction Result</CardTitle>
-                    <CardDescription>
-                      The API returns the chosen method, token labels, and normalized boxes.
-                    </CardDescription>
-                  </div>
-                  {result ? (
-                    <Badge variant={result.extraction_method === "heuristic" ? "secondary" : "default"}>
-                      {result.extraction_method}
-                    </Badge>
-                  ) : null}
-                </div>
-              </CardHeader>
-              <CardContent className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_320px]">
-                <div className="space-y-4">
-                  <div className="rounded-2xl border border-border/70 bg-muted/30 p-4">
-                    <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">
-                      Invoice Number
-                    </p>
-                    <p className="mt-2 break-all text-3xl font-semibold">
-                      {result?.invoice_number || "Waiting for prediction"}
-                    </p>
-                  </div>
-
-                  <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-slate-950/95">
-                    {previewUrl ? (
-                      <div className="relative">
-                        <img
-                          alt="Invoice preview"
-                          className="h-auto w-full object-contain"
-                          src={previewUrl}
-                        />
-                        {result?.predictions.map((prediction) => (
-                          <div
-                            key={`${prediction.index}-${prediction.word}`}
-                            className={
-                              prediction.is_invoice_number
-                                ? "absolute border-2 border-orange-400 bg-orange-400/10"
-                                : "absolute border border-cyan-300/70 bg-cyan-300/5"
-                            }
-                            style={{
-                              left: `${prediction.box[0] / 10}%`,
-                              top: `${prediction.box[1] / 10}%`,
-                              width: `${(prediction.box[2] - prediction.box[0]) / 10}%`,
-                              height: `${(prediction.box[3] - prediction.box[1]) / 10}%`,
-                            }}
-                            title={`${prediction.word} (${prediction.label})`}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="flex min-h-[420px] items-center justify-center p-10 text-center text-sm text-slate-300">
-                        Upload an image to see the box overlay view.
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="rounded-2xl bg-secondary/70 p-4">
-                    <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">Summary</p>
-                    <div className="mt-4 grid gap-3 text-sm">
-                      <div className="flex items-center justify-between">
-                        <span>Total tokens</span>
-                        <span className="font-medium">{result?.total_words ?? 0}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>Highlighted tokens</span>
-                        <span className="font-medium">{highlightedCount}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>Inference device</span>
-                        <span className="font-medium">{result?.model_device || health?.device || "Unknown"}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl bg-secondary/70 p-4">
-                    <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">Review Notes</p>
-                    <ul className="mt-4 space-y-3 text-sm text-muted-foreground">
-                      <li className="flex items-start gap-2">
-                        <CheckCircle2 className="mt-0.5 h-4 w-4 text-chart-3" />
-                        Heuristic hits render as orange boxes.
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <Sparkles className="mt-0.5 h-4 w-4 text-chart-2" />
-                        Model fallback uses token-level labels and confidence.
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <AlertCircle className="mt-0.5 h-4 w-4 text-chart-4" />
-                        Low-confidence rows are easiest to review in the table below.
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-card/90 backdrop-blur">
-              <CardHeader>
-                <CardTitle>Token Predictions</CardTitle>
-                <CardDescription>
-                  Review the words the model or heuristic considered part of the invoice number.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>#</TableHead>
-                      <TableHead>Word</TableHead>
-                      <TableHead>Label</TableHead>
-                      <TableHead>Confidence</TableHead>
-                      <TableHead>Match</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {result?.predictions.length ? (
-                      result.predictions.map((prediction) => (
-                        <TableRow key={`${prediction.index}-${prediction.word}`}>
-                          <TableCell className="text-muted-foreground">{prediction.index}</TableCell>
-                          <TableCell className="font-medium">{prediction.word}</TableCell>
-                          <TableCell>
-                            <Badge variant={prediction.is_invoice_number ? "default" : "outline"}>
-                              {prediction.label}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{formatPercent(prediction.confidence)}</TableCell>
-                          <TableCell>{prediction.is_invoice_number ? "Yes" : "No"}</TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell className="py-10 text-center text-muted-foreground" colSpan={5}>
-                          No prediction yet.
+          <Card>
+            <CardHeader>
+              <CardTitle>Predictions</CardTitle>
+              <CardDescription>
+                Token-level labels returned by the backend.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>#</TableHead>
+                    <TableHead>Word</TableHead>
+                    <TableHead>Label</TableHead>
+                    <TableHead>Confidence</TableHead>
+                    <TableHead>Match</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {result?.predictions.length ? (
+                    result.predictions.map((prediction) => (
+                      <TableRow key={`${prediction.index}-${prediction.word}`}>
+                        <TableCell className="text-muted-foreground">
+                          {prediction.index}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {prediction.word}
+                        </TableCell>
+                        <TableCell>{prediction.label}</TableCell>
+                        <TableCell>{formatPercent(prediction.confidence)}</TableCell>
+                        <TableCell>
+                          {prediction.is_invoice_number ? "Yes" : "No"}
                         </TableCell>
                       </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell
+                        className="py-10 text-center text-muted-foreground"
+                        colSpan={5}
+                      >
+                        No prediction yet.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
 
-                <Separator />
+              <Separator />
 
-                <div className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-3">
-                  <div className="rounded-xl bg-muted/60 p-3">
-                    `LABEL_0` means the token is outside the invoice number span.
-                  </div>
-                  <div className="rounded-xl bg-muted/60 p-3">
-                    `LABEL_1` and `LABEL_2` represent the model-selected invoice number span.
-                  </div>
-                  <div className="rounded-xl bg-muted/60 p-3">
-                    `HEURISTIC_MATCH` means the fast rule-based path found the number before model inference.
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </section>
+              <p className="text-sm text-muted-foreground">
+                `LABEL_1`, `LABEL_2`, and `HEURISTIC_MATCH` indicate the selected
+                invoice number span.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </main>
   );
