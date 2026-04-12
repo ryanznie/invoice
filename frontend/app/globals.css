@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 42 33% 97%;
+  --foreground: 218 33% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 218 33% 12%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 218 33% 12%;
+  --primary: 202 85% 33%;
+  --primary-foreground: 42 33% 97%;
+  --secondary: 199 35% 92%;
+  --secondary-foreground: 218 33% 18%;
+  --muted: 42 25% 92%;
+  --muted-foreground: 215 16% 38%;
+  --accent: 16 82% 88%;
+  --accent-foreground: 20 66% 22%;
+  --destructive: 0 72% 46%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 206 20% 85%;
+  --input: 206 20% 85%;
+  --ring: 202 85% 33%;
+  --chart-1: 202 85% 33%;
+  --chart-2: 16 82% 55%;
+  --chart-3: 153 43% 37%;
+  --chart-4: 46 89% 50%;
+  --chart-5: 260 59% 57%;
+  --radius: 1rem;
+  --font-sans: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+}
+
+* {
+  @apply border-border;
+}
+
+body {
+  @apply bg-background text-foreground antialiased;
+  background-image:
+    radial-gradient(circle at top left, rgba(249, 115, 22, 0.12), transparent 28%),
+    radial-gradient(circle at top right, rgba(14, 116, 144, 0.12), transparent 24%),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.8), rgba(248, 250, 252, 0.9)),
+    linear-gradient(to right, rgba(15, 23, 42, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.04) 1px, transparent 1px);
+  background-size: auto, auto, auto, 32px 32px, 32px 32px;
+}
+
+a {
+  @apply text-primary underline-offset-4 hover:underline;
+}

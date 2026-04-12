@@ -1,15 +1,14 @@
 """
-FastAPI + Gradio app for Invoice NER model testing
-Accepts: Image + Text file (JSON with words and bboxes)
-
-This is the main entry point that orchestrates the modular components in src/
+FastAPI entry point for the Invoice NER backend.
 """
 
 import os
 import logging
+import argparse
 from dotenv import load_dotenv
-import gradio as gr
-from src import app, create_gradio_interface, load_model, DEVICE, MODEL_PATH
+import uvicorn
+
+from src import app, load_model, DEVICE, MODEL_PATH
 
 load_dotenv()
 
@@ -20,28 +19,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ============================================================================
-# GRADIO INTERFACE SETUP
-# ============================================================================
 
-# Create Gradio interface from src module
-demo = create_gradio_interface()
-
-
-# Mount Gradio app to FastAPI
-app = gr.mount_gradio_app(app, demo, path="/")
-
-
-# ============================================================================
-# MAIN
-# ============================================================================
-
-if __name__ == "__main__":
-    import uvicorn
-    import argparse
-
-    # Parse arguments
-    parser = argparse.ArgumentParser(description="Invoice NER App")
+def main():
+    """Run the API server."""
+    parser = argparse.ArgumentParser(description="Invoice NER API")
     parser.add_argument(
         "--debug", action="store_true", help="Run in debug mode with auto-reload"
     )
@@ -59,12 +40,11 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    # Load model before starting server (unless in debug mode with reload)
     if not args.debug:
         load_model()
 
     print("\n" + "=" * 60)
-    print("🚀 Starting Invoice NER App")
+    print("🚀 Starting Invoice NER API")
     if args.debug:
         print("🐛 DEBUG MODE - Auto-reload enabled")
     print("=" * 60)
@@ -81,3 +61,7 @@ if __name__ == "__main__":
         reload=args.debug,
         log_level="debug" if args.debug else "info",
     )
+
+
+if __name__ == "__main__":
+    main()

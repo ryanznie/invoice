@@ -1,0 +1,51 @@
+FROM nvcr.io/nvidia/tritonserver:23.10-py3
+
+WORKDIR /app
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1
+ENV HOST=0.0.0.0
+ENV PORT=7860
+ENV INFERENCE_BACKEND=triton
+ENV TRITON_URL=localhost:8000
+ENV TRITON_MODEL_NAME=layoutlmv3-lora-invoice-number
+ENV CORS_ORIGIN_REGEX=https://.*\\.vercel\\.app
+
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    git \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY pyproject.toml uv.lock* README.md ./
+RUN python3 -m pip install uv
+RUN uv pip install --system --no-cache \
+    torch --index-url https://download.pytorch.org/whl/cu121
+
+RUN uv pip install --system --no-cache \
+    transformers \
+    fastapi \
+    uvicorn[standard] \
+    python-dotenv \
+    python-multipart \
+    pillow \
+    pandas \
+    tqdm \
+    onnx \
+    onnxruntime-gpu \
+    tritonclient[http] \
+    prometheus-client
+
+COPY . .
+
+RUN chmod +x /app/scripts/start_runpod.sh
+
+EXPOSE 7860
+EXPOSE 8000
+EXPOSE 8001
+EXPOSE 8002
+
+CMD ["/app/scripts/start_runpod.sh"]

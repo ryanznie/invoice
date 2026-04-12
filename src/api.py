@@ -11,6 +11,7 @@ from typing import List
 from contextlib import asynccontextmanager
 from PIL import Image
 from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from . import inference
@@ -43,11 +44,41 @@ app = FastAPI(
 )
 
 
+def _get_cors_origins() -> list[str]:
+    raw_origins = os.getenv("CORS_ORIGINS", "")
+    return [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+
+
+cors_origins = _get_cors_origins()
+cors_origin_regex = os.getenv("CORS_ORIGIN_REGEX")
+if cors_origins or cors_origin_regex:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins,
+        allow_origin_regex=cors_origin_regex,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+
 class PredictionRequest(BaseModel):
     """Request model for predictions"""
 
     words: List[str]
     boxes: List[List[int]]
+
+
+@app.get("/")
+async def root():
+    """API root metadata."""
+    return {
+        "name": "Invoice NER API",
+        "status": "ok",
+        "docs_url": "/docs",
+        "predict_url": "/predict",
+        "health_url": "/health",
+    }
 
 
 @app.get("/health")
@@ -209,9 +240,11 @@ def predict(
         ):
             predictions.append(
                 {
+                    "index": i,
                     "word": word,
                     "label": label,
                     "confidence": round(conf, 4),
+                    "box": boxes[i],
                     "is_invoice_number": label.startswith("LABEL_1")
                     or label.startswith("LABEL_2")
                     or label == "HEURISTIC_MATCH",
@@ -224,6 +257,7 @@ def predict(
             "predictions": predictions,
             "total_words": len(words),
             "model_device": inference.DEVICE,
+            "image_size": {"width": img_width, "height": img_height},
         }
 
     except HTTPException:

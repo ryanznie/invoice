@@ -6,7 +6,7 @@ Named Entity Recognition (NER) for invoice processing using LayoutLMv3 with LoRA
 
 - 🤖 **Hybrid Extraction Pipeline** - Combines fast heuristic pattern matching with deep learning fallback (LayoutLMv3 & Gemini 2.5 Flash)
 - 🎯 **LayoutLMv3 with LoRA** - Efficient fine-tuning on multimodal document understanding
-- 🌐 **Dual Interface** - REST API for programmatic access + Gradio UI for interactive use
+- 🌐 **Split Architecture** - FastAPI inference backend + Next.js frontend for Vercel
 - 🚀 **Production Ready** - Comprehensive test suite (107 tests), Docker support, health checks
 - 📊 **Multi-Format Support** - Accepts TXT and JSON OCR data formats
 - ⚡ **ONNX Support** - Optimized inference with ONNX Runtime (FP32/FP16/INT8)
@@ -19,6 +19,11 @@ Named Entity Recognition (NER) for invoice processing using LayoutLMv3 with LoRA
 ```
 invoice-ner/
 ├── app.py                      # Main FastAPI application
+├── frontend/                   # Next.js + shadcn/ui frontend for Vercel
+│   ├── app/                    # App Router pages
+│   ├── components/             # UI and invoice review components
+│   ├── lib/                    # Frontend utilities
+│   └── README.md               # Frontend deployment guide
 ├── docker-compose.yml          # Docker Compose configuration
 ├── Dockerfile                  # Docker image definition
 ├── pyproject.toml              # Python project configuration & dependencies
@@ -67,11 +72,11 @@ invoice-ner/
 ├── src/                        # Core application modules
 │   ├── __init__.py
 │   ├── api.py                   # FastAPI endpoints
-│   ├── gradio_ui.py             # Gradio interface
 │   ├── inference.py             # Model inference logic
 │   ├── heuristics.py            # Pattern-based extraction
 │   ├── postprocessing.py        # Result postprocessing
 │   ├── validation.py            # Input validation
+│   ├── visualization.py         # Annotation helpers
 │   └── utils.py                 # Utility functions
 │
 ├── docs/                       # Additional documentation
@@ -92,7 +97,8 @@ invoice-ner/
 
 ### Key Directories
 
-- **`src/`** - Core application modules (API endpoints, inference, UI, validation, utilities)
+- **`src/`** - Core backend modules (API endpoints, inference, validation, utilities)
+- **`frontend/`** - Vercel-ready Next.js frontend built with `shadcn/ui`
 - **`data/`** - Contains the SROIE2019 dataset and Streamlit labeling tool for annotating invoice images
 - **`models/`** - Stores fine-tuned LoRA adapters and exported ONNX models for deployment
 - **`notebooks/`** - Jupyter notebooks for experimentation, analysis, and prototyping
@@ -115,8 +121,8 @@ docker-compose up -d --build
 # 3. Check logs
 docker-compose logs -f
 
-# 4. Open browser
-open http://localhost:7860
+# 4. Verify the API
+curl http://localhost:7860/health
 
 # 5. Stop when done
 docker-compose down
@@ -138,8 +144,11 @@ uv pip install -e .
 # 4. Run the app (automatically loads .env)
 python app.py
 
-# 5. Open browser
-open http://localhost:7860
+# 5. Run the frontend
+cd frontend
+npm install
+cp .env.example .env.local
+npm run dev
 ```
 
 ## 📋 Prerequisites
@@ -188,7 +197,16 @@ curl -X POST http://localhost:7860/predict \
 # }
 ```
 
-For detailed API documentation with code examples in Python, JavaScript, and more, see **[docs/API_USAGE.md](docs/API_USAGE.md)**.
+For detailed API documentation with code examples in Python, JavaScript, and more, see **[docs/API_USAGE.md](docs/API_USAGE.md)**. For the Vercel UI setup, see **[frontend/README.md](frontend/README.md)**.
+
+## ☁️ Deployment
+
+Recommended setup for this repository:
+
+- **Frontend**: Vercel
+- **Backend**: Runpod GPU Pod running Triton + FastAPI
+
+See **[docs/RUNPOD_DEPLOY.md](docs/RUNPOD_DEPLOY.md)** for the exact Runpod flow.
 
 ## 🔧 Configuration
 
@@ -331,17 +349,17 @@ PORT=8080
 
 ## 📚 API Documentation
 
-The application provides both a **Gradio web interface** and a **REST API**:
-
-### Web Interface (Gradio)
-- **URL**: http://localhost:7860/
-- **Features**: Drag-and-drop upload, visual preview, no coding required
-- **Best for**: Manual testing, demos, non-technical users
+The application exposes a **REST API** and ships a separate **Next.js frontend** in `frontend/`.
 
 ### REST API
 - **Interactive docs**: http://localhost:7860/docs (Swagger UI)
 - **Alternative docs**: http://localhost:7860/redoc (ReDoc)
 - **Health check**: http://localhost:7860/health
+
+### Frontend
+- **Local dev**: `cd frontend && npm install && npm run dev`
+- **Deployment target**: Vercel
+- **Configuration**: `INVOICE_NER_API_URL` pointing at the FastAPI backend
 
 **Detailed API Guide**: See [docs/API_USAGE.md](docs/API_USAGE.md) for:
 - Complete endpoint documentation
