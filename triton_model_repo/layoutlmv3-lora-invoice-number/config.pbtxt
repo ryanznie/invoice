@@ -4,6 +4,12 @@ max_batch_size: 8
 
 dynamic_batching { }
 
+instance_group [
+  {
+    kind: KIND_CPU
+  }
+]
+
 input {
   name: "pixel_values"
   data_type: TYPE_FP32
