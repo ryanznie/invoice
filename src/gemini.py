@@ -4,8 +4,12 @@ import time
 from typing import Optional, List, Dict, Any
 from PIL import Image
 
-from google import genai
-from google.genai import types
+try:
+    from google import genai
+    from google.genai import types
+except ImportError:  # pragma: no cover - optional dependency
+    genai = None
+    types = None
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +44,12 @@ class GeminiClient:
 
         if not self.api_key:
             logger.warning("GOOGLE_API_KEY not set. Gemini fallback will not work.")
+            return
+
+        if genai is None or types is None:
+            logger.warning(
+                "google-genai is not installed. Gemini fallback will not work."
+            )
             return
 
         try:
