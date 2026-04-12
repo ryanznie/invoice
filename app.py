@@ -9,6 +9,7 @@ import os
 import logging
 from dotenv import load_dotenv
 import gradio as gr
+from fastapi.responses import RedirectResponse
 from src import app, create_gradio_interface, load_model, DEVICE, MODEL_PATH
 
 load_dotenv()
@@ -28,8 +29,13 @@ logger = logging.getLogger(__name__)
 demo = create_gradio_interface()
 
 
-# Mount Gradio app to FastAPI
-app = gr.mount_gradio_app(app, demo, path="/")
+# Mount Gradio under a dedicated path so API and metrics routes stay reachable
+app = gr.mount_gradio_app(app, demo, path="/ui")
+
+
+@app.get("/", include_in_schema=False)
+async def root_redirect():
+    return RedirectResponse(url="/ui")
 
 
 # ============================================================================
