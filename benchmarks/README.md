@@ -44,11 +44,18 @@ python benchmarks/benchmark.py \
   --model-path models/artifacts/layoutlmv3_invoice_ner.onnx \
   --run-name "onnx-test"
 
-# Benchmark Gemini 2.5 Flash (requires GEMINI_API_KEY env var)
+# Benchmark OpenRouter-hosted VLM (requires OPENROUTER_API_KEY env var)
 python benchmarks/benchmark.py \
-  --model gemini \
+  --model openrouter \
   --data-dir data/test \
-  --run-name "gemini-2.5-flash"
+  --run-name "qwen2.5-vl-72b-openrouter"
+
+# Benchmark a different OpenRouter vision model
+python benchmarks/benchmark.py \
+  --model openrouter \
+  --data-dir data/test \
+  --model-path qwen/qwen3-vl-235b-a22b-instruct \
+  --run-name "qwen3-vl-openrouter"
 ```
 
 ## Available Models
@@ -56,7 +63,7 @@ python benchmarks/benchmark.py \
 - **`hybrid`** - Heuristics first, LayoutLMv3 fallback (current production architecture)
 - **`layoutlmv3`** - LayoutLMv3 model only
 - **`onnx`** - ONNX Runtime inference
-- **`gemini`** - Google Gemini 2.5 Flash (via API)
+- **`openrouter`** - Hosted VLM via OpenRouter (defaults to Qwen2.5-VL 72B)
 
 ## Tracked Metrics
 
@@ -75,11 +82,11 @@ python benchmarks/benchmark.py \
 ## Command-Line Arguments
 
 **Required:**
-- `--model` - Model to benchmark (`hybrid`, `layoutlmv3`, `onnx`, `gemini`)
+- `--model` - Model to benchmark (`hybrid`, `layoutlmv3`, `onnx`, `openrouter`)
 - `--data-dir` - Path to data directory
 
 **Optional:**
-- `--model-path` - Path to model file (Required for `onnx`)
+- `--model-path` - Path to model file (required for `onnx`) or hosted model ID (optional for `openrouter`)
 - `--split` - Dataset split (`test` or `train`, default: `test`)
 - `--run-name` - Name for this run
 - `--wandb-project` - W&B project name
