@@ -116,6 +116,10 @@ class OpenRouterClient:
             "OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"
         )
         self.max_tokens = int(os.getenv("OPENROUTER_MAX_TOKENS", "128"))
+        self.max_retries = int(os.getenv("OPENROUTER_MAX_RETRIES", "3"))
+        self.retry_backoff_seconds = float(
+            os.getenv("OPENROUTER_RETRY_BACKOFF_SECONDS", "2.0")
+        )
         self.client = None
         self._initialized = False
 
@@ -180,34 +184,67 @@ class OpenRouterClient:
 
         start_time = time.time()
 
-        try:
-            logger.info("Sending request to OpenRouter (%s)...", self.model_name)
-            response = self.client.chat.completions.create(
-                model=self.model_name,
-                messages=[{"role": "user", "content": content}],
-                temperature=0,
-                max_tokens=self.max_tokens,
-                response_format={"type": "json_object"},
-            )
+        total_attempts = self.max_retries + 1
+        for attempt in range(total_attempts):
+            retry_count = attempt
+            try:
+                logger.info(
+                    "Sending request to OpenRouter (%s), attempt %s/%s...",
+                    self.model_name,
+                    attempt + 1,
+                    total_attempts,
+                )
+                response = self.client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[{"role": "user", "content": content}],
+                    temperature=0,
+                    max_tokens=self.max_tokens,
+                    response_format={"type": "json_object"},
+                )
 
-            raw_text = response.choices[0].message.content or ""
-            invoice_number = self._clean_output(raw_text)
+                raw_text = response.choices[0].message.content or ""
+                invoice_number = self._clean_output(raw_text)
 
-            latency = (time.time() - start_time) * 1000
+                latency = (time.time() - start_time) * 1000
 
-            result = {
-                "invoice_number": invoice_number,
-                "raw_response": raw_text,
-                "latency_ms": latency,
-                "method": self.model_name,
-            }
-            if response.usage:
-                result["usage"] = response.usage.model_dump()
-            return result
+                result = {
+                    "invoice_number": invoice_number,
+                    "raw_response": raw_text,
+                    "latency_ms": latency,
+                    "method": self.model_name,
+                    "retry_count": retry_count,
+                }
+                if response.usage:
+                    result["usage"] = response.usage.model_dump()
+                return result
 
-        except Exception as exc:
-            logger.error("OpenRouter inference failed: %s", exc)
-            return {"invoice_number": None, "error": str(exc)}
+            except Exception as exc:
+                if attempt >= self.max_retries:
+                    logger.error("OpenRouter inference failed: %s", exc)
+                    return {
+                        "invoice_number": None,
+                        "error": str(exc),
+                        "method": self.model_name,
+                        "retry_count": retry_count,
+                    }
+
+                delay = self.retry_backoff_seconds * (2**attempt)
+                logger.warning(
+                    "OpenRouter inference attempt %s/%s failed: %s. Retrying in %.2fs.",
+                    attempt + 1,
+                    total_attempts,
+                    exc,
+                    delay,
+                )
+                if delay > 0:
+                    time.sleep(delay)
+
+        return {
+            "invoice_number": None,
+            "error": "OpenRouter inference failed",
+            "method": self.model_name,
+            "retry_count": self.max_retries,
+        }
 
     def _image_to_data_url(self, image: Image.Image) -> str:
         buffer = BytesIO()

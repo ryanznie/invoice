@@ -195,6 +195,8 @@ All configuration is managed through environment variables. Copy `.env.example` 
 | `OPENROUTER_MODEL` | `qwen/qwen2.5-vl-72b-instruct` | Hosted vision model for fallback |
 | `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | OpenRouter OpenAI-compatible endpoint |
 | `OPENROUTER_MAX_TOKENS` | `128` | Max generated tokens for fallback extraction |
+| `OPENROUTER_MAX_RETRIES` | `3` | Retry attempts after transient OpenRouter request failures |
+| `OPENROUTER_RETRY_BACKOFF_SECONDS` | `2.0` | Initial retry delay in seconds; retries use exponential backoff |
 
 #### Server Configuration
 

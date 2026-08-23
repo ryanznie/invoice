@@ -5,6 +5,24 @@ from benchmarks.models.openrouter_model import OpenRouterModel
 from src.openrouter import OpenRouterClient
 
 
+class FlakyCompletions:
+    def __init__(self):
+        self.calls = 0
+
+    def create(self, *args, **kwargs):
+        self.calls += 1
+        if self.calls == 1:
+            raise RuntimeError("temporary OpenRouter failure")
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(content='{"invoice_number": "INV-123"}')
+                )
+            ],
+            usage=None,
+        )
+
+
 def test_benchmark_openrouter_registered():
     model = get_model("openrouter", {})
 
@@ -41,6 +59,24 @@ def test_benchmark_openrouter_result_method_is_model_name():
     result = model.predict(text="invoice number INV-123")
 
     assert result.method == "qwen/qwen3-vl-8b-instruct"
+
+
+def test_benchmark_openrouter_retries_transient_failures():
+    model = OpenRouterModel(
+        {
+            "model_path": "qwen/qwen3-vl-8b-instruct",
+            "max_retries": 1,
+            "retry_backoff_seconds": 0,
+        }
+    )
+    completions = FlakyCompletions()
+    model.client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
+
+    result = model.predict(text="invoice number INV-123")
+
+    assert completions.calls == 2
+    assert result.invoice_number == "INV-123"
+    assert result.metadata["retry_count"] == 1
 
 
 def test_benchmark_openrouter_parses_null_invoice_number():
@@ -93,3 +129,19 @@ def test_fallback_openrouter_rejects_malformed_responses():
         )
         is None
     )
+
+
+def test_fallback_openrouter_retries_transient_failures():
+    client = OpenRouterClient(api_key="test", model_name="qwen/qwen3-vl-8b-instruct")
+    completions = FlakyCompletions()
+    client.client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
+    client._initialized = True
+    client.max_retries = 1
+    client.retry_backoff_seconds = 0
+
+    result = client.predict(words=["invoice", "number", "INV-123"])
+
+    assert completions.calls == 2
+    assert result["invoice_number"] == "INV-123"
+    assert result["method"] == "qwen/qwen3-vl-8b-instruct"
+    assert result["retry_count"] == 1

@@ -43,6 +43,17 @@ class OpenRouterModel(BaseInvoiceModel):
                 "max_new_tokens", os.getenv("OPENROUTER_MAX_TOKENS", "128")
             )
         )
+        self.max_retries = int(
+            self.model_config.get(
+                "max_retries", os.getenv("OPENROUTER_MAX_RETRIES", "3")
+            )
+        )
+        self.retry_backoff_seconds = float(
+            self.model_config.get(
+                "retry_backoff_seconds",
+                os.getenv("OPENROUTER_RETRY_BACKOFF_SECONDS", "2.0"),
+            )
+        )
 
     def load(self) -> None:
         """Load/configure the OpenRouter API client."""
@@ -90,43 +101,72 @@ class OpenRouterModel(BaseInvoiceModel):
             )
 
         start_time = time.time()
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model_name,
-                messages=[{"role": "user", "content": content}],
-                temperature=0,
-                max_tokens=self.max_tokens,
-                response_format={"type": "json_object"},
-            )
+        total_attempts = self.max_retries + 1
+        for attempt in range(total_attempts):
+            retry_count = attempt
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[{"role": "user", "content": content}],
+                    temperature=0,
+                    max_tokens=self.max_tokens,
+                    response_format={"type": "json_object"},
+                )
 
-            raw_text = response.choices[0].message.content or ""
-            invoice_number = self._clean_output(raw_text)
-            metadata = {
-                "raw_response": raw_text,
-                "model_name": self.model_name,
-                "latency_ms": (time.time() - start_time) * 1000,
-            }
-            if response.usage:
-                metadata["usage"] = response.usage.model_dump()
-
-            return InferenceResult(
-                invoice_number=invoice_number,
-                confidence=1.0 if invoice_number else 0.0,
-                method=self.model_name,
-                metadata=metadata,
-            )
-        except Exception as exc:
-            logger.error("OpenRouter inference failed: %s", exc)
-            return InferenceResult(
-                invoice_number=None,
-                confidence=0.0,
-                method=self.model_name,
-                metadata={
-                    "error": str(exc),
+                raw_text = response.choices[0].message.content or ""
+                invoice_number = self._clean_output(raw_text)
+                metadata = {
+                    "raw_response": raw_text,
                     "model_name": self.model_name,
-                    "failed": True,
-                },
-            )
+                    "latency_ms": (time.time() - start_time) * 1000,
+                    "retry_count": retry_count,
+                }
+                if response.usage:
+                    metadata["usage"] = response.usage.model_dump()
+
+                return InferenceResult(
+                    invoice_number=invoice_number,
+                    confidence=1.0 if invoice_number else 0.0,
+                    method=self.model_name,
+                    metadata=metadata,
+                )
+            except Exception as exc:
+                if attempt >= self.max_retries:
+                    logger.error("OpenRouter inference failed: %s", exc)
+                    return InferenceResult(
+                        invoice_number=None,
+                        confidence=0.0,
+                        method=self.model_name,
+                        metadata={
+                            "error": str(exc),
+                            "model_name": self.model_name,
+                            "failed": True,
+                            "retry_count": retry_count,
+                        },
+                    )
+
+                delay = self.retry_backoff_seconds * (2**attempt)
+                logger.warning(
+                    "OpenRouter inference attempt %s/%s failed: %s. Retrying in %.2fs.",
+                    attempt + 1,
+                    total_attempts,
+                    exc,
+                    delay,
+                )
+                if delay > 0:
+                    time.sleep(delay)
+
+        return InferenceResult(
+            invoice_number=None,
+            confidence=0.0,
+            method=self.model_name,
+            metadata={
+                "error": "OpenRouter inference failed",
+                "model_name": self.model_name,
+                "failed": True,
+                "retry_count": self.max_retries,
+            },
+        )
 
     def _image_to_data_url(self, image: Image.Image) -> str:
         buffer = BytesIO()
@@ -144,4 +184,6 @@ class OpenRouterModel(BaseInvoiceModel):
             "provider": "openrouter",
             "base_url": self.base_url,
             "max_tokens": self.max_tokens,
+            "max_retries": self.max_retries,
+            "retry_backoff_seconds": self.retry_backoff_seconds,
         }
