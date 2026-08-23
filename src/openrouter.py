@@ -29,6 +29,7 @@ REFUSAL_OR_PROSE_MARKERS = (
     "unable",
 )
 INVOICE_NUMBER_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._/#:-]{0,63}$")
+FENCED_JSON_PATTERN = re.compile(r"^```(?:json)?\s*(.*?)\s*```$", re.DOTALL)
 
 
 def _looks_like_serialized_json(value: str) -> bool:
@@ -43,6 +44,7 @@ def _looks_like_serialized_json(value: str) -> bool:
 
 def _is_plausible_invoice_number(value: str) -> bool:
     lower_value = value.lower()
+    tokens = value.split()
 
     if lower_value in NULL_LIKE_INVOICE_VALUES:
         return False
@@ -52,7 +54,9 @@ def _is_plausible_invoice_number(value: str) -> bool:
         return False
     if not re.search(r"\d", value):
         return False
-    if len(value.split()) > 4:
+    if len(tokens) > 4:
+        return False
+    if len(tokens) > 1 and any(token.isalpha() for token in tokens):
         return False
     return bool(INVOICE_NUMBER_PATTERN.fullmatch(value))
 
@@ -63,7 +67,7 @@ def clean_openrouter_invoice_number(text: str) -> Optional[str]:
         return None
 
     cleaned = text.strip()
-    fenced_match = re.search(r"```(?:json)?\s*(.*?)\s*```", cleaned, re.DOTALL)
+    fenced_match = FENCED_JSON_PATTERN.fullmatch(cleaned)
     if fenced_match:
         cleaned = fenced_match.group(1).strip()
 

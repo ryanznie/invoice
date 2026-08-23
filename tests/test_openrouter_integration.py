@@ -96,9 +96,17 @@ def test_benchmark_openrouter_rejects_malformed_responses():
         model._clean_output('{"invoice_number": "The invoice number is INV-123."}')
         is None
     )
+    assert model._clean_output('{"invoice_number": "Invoice INV-123"}') is None
+    assert model._clean_output('{"invoice_number": "INV-123 extracted"}') is None
     assert (
         model._clean_output(
             '{"invoice_number": "{\\"invoice_number\\": \\"INV-123\\"}"}'
+        )
+        is None
+    )
+    assert (
+        model._clean_output(
+            'Here is the result:\n```json\n{"invoice_number": "INV-123"}\n```'
         )
         is None
     )
@@ -123,10 +131,16 @@ def test_fallback_openrouter_rejects_malformed_responses():
         )
         is None
     )
+    assert client._clean_output('{"invoice_number": "Invoice CS-991"}') is None
+    assert client._clean_output('{"invoice_number": "CS-991 extracted"}') is None
     assert (
         client._clean_output(
             '{"invoice_number": "{\\"invoice_number\\": \\"CS-991\\"}"}'
         )
+        is None
+    )
+    assert (
+        client._clean_output('Sure:\n```json\n{"invoice_number": "CS-991"}\n```')
         is None
     )
 
