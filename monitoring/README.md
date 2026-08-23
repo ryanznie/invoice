@@ -2,12 +2,14 @@
 
 ## Start the Stack
 
-Set a local Grafana password before starting the stack:
+Create a local `.env` file before starting the stack:
 
 ```bash
 cp .env.example .env
-GRAFANA_ADMIN_PASSWORD="$(openssl rand -base64 24)" >> .env
 ```
+
+The example password is only for localhost development. Change
+`GRAFANA_ADMIN_PASSWORD` in `.env` before sharing access to Grafana.
 
 ```bash
 docker compose up -d --build invoice-ner tritonserver prometheus grafana
