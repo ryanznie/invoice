@@ -22,3 +22,21 @@
 - Model path, device, timeout, and fallback changes should be reviewed against Docker, RunPod, Triton, and docs configuration.
 - Training or benchmarking changes should avoid data leakage between train, validation, and test sets.
 - Prefer deterministic, testable postprocessing over broad prompt or heuristic changes without examples.
+
+## PR Understanding Quiz
+
+- Include a "PR Understanding Quiz" section in each PR summary.
+- Write 3-5 multiple-choice questions that help the author check their understanding of the changed code paths, contracts, tradeoffs, and risks.
+- Each question should have exactly four answer options labeled A-D.
+- Keep questions grounded in the PR diff and repository context; avoid generic coding trivia.
+- Include a readable answer key immediately after the quiz in a collapsible Markdown details block:
+
+```markdown
+<details>
+<summary>Answer key</summary>
+
+1. B - Short explanation.
+2. D - Short explanation.
+
+</details>
+```
