@@ -191,12 +191,17 @@ All configuration is managed through environment variables. Copy `.env.example` 
 | `BASE_MODEL` | `microsoft/layoutlmv3-base` | Base model identifier |
 | `MAX_LENGTH` | `512` | Maximum sequence length for model input |
 | `NUM_LABELS` | `3` | Number of NER labels (O, B-INVOICE_NUMBER, I-INVOICE_NUMBER) |
-| `GOOGLE_API_KEY` | `""` | API Key for Gemini fallback (uses `gemini-2.5-flash`) |
+| `OPENROUTER_API_KEY` | `""` | API key for OpenRouter fallback |
+| `OPENROUTER_MODEL` | `qwen/qwen2.5-vl-72b-instruct` | Hosted vision model for fallback |
+| `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | OpenRouter OpenAI-compatible endpoint |
+| `OPENROUTER_MAX_TOKENS` | `128` | Max generated tokens for fallback extraction |
+| `OPENROUTER_MAX_RETRIES` | `3` | Retry attempts after transient OpenRouter request failures |
+| `OPENROUTER_RETRY_BACKOFF_SECONDS` | `2.0` | Initial retry delay in seconds; retries use exponential backoff |
 
 #### Server Configuration
 
 > [!NOTE]
-> **Gemini Fallback**: If the primary local model fails, the system automatically attempts to extract the invoice number using Google's `gemini-2.5-flash` model. This requires the `GOOGLE_API_KEY` environment variable to be set.
+> **OpenRouter Fallback**: If the primary local model fails, the system automatically attempts to extract the invoice number using the configured OpenRouter vision model. This requires the `OPENROUTER_API_KEY` environment variable to be set.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
