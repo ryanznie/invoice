@@ -13,12 +13,15 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import os
 import sys
 from dataclasses import dataclass
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+
+DOTENV_PATH = ".env"
 
 
 @dataclass(frozen=True)
@@ -44,6 +47,25 @@ def _basic_auth(username: str, password: str) -> dict[str, str]:
     raw = f"{username}:{password}".encode()
     token = base64.b64encode(raw).decode("ascii")
     return {"Authorization": f"Basic {token}"}
+
+
+def _dotenv_value(key: str, path: str = DOTENV_PATH) -> str | None:
+    try:
+        with open(path) as env_file:
+            for raw_line in env_file:
+                line = raw_line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                name, value = line.split("=", 1)
+                if name == key:
+                    return value.strip().strip("\"'")
+    except FileNotFoundError:
+        return None
+    return None
+
+
+def _config_value(key: str, default: str | None = None) -> str | None:
+    return os.getenv(key) or _dotenv_value(key) or default
 
 
 def check_api(api_url: str) -> list[CheckResult]:
@@ -143,9 +165,21 @@ def main() -> int:
     parser.add_argument("--api-url", default="http://localhost:7860")
     parser.add_argument("--prometheus-url", default="http://localhost:9090")
     parser.add_argument("--grafana-url", default="http://localhost:3000")
-    parser.add_argument("--grafana-user", default="admin")
-    parser.add_argument("--grafana-password", default="admin")
+    parser.add_argument(
+        "--grafana-user", default=_config_value("GRAFANA_ADMIN_USER", "admin")
+    )
+    parser.add_argument(
+        "--grafana-password",
+        default=_config_value("GRAFANA_ADMIN_PASSWORD"),
+    )
     args = parser.parse_args()
+
+    if not args.grafana_password:
+        print(
+            "monitoring smoke failed: set GRAFANA_ADMIN_PASSWORD in the environment, "
+            ".env, or --grafana-password"
+        )
+        return 1
 
     checks: list[CheckResult] = []
     try:
