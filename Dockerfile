@@ -34,6 +34,7 @@ RUN uv pip install --system --no-cache \
     tqdm \
     onnx \
     onnxruntime \
+    prometheus-client \
     tritonclient[http]
 
 # Copy application code
