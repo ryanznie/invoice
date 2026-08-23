@@ -27,8 +27,8 @@ RUN uv pip install --system --no-cache \
     transformers \
     fastapi \
     uvicorn[standard] \
-    gradio \
     python-dotenv \
+    python-multipart \
     pillow \
     pandas \
     tqdm \

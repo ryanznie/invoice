@@ -133,21 +133,29 @@ The API accepts both:
   "extraction_method": "heuristic",
   "predictions": [
     {
+      "index": 0,
       "word": "Invoice",
       "label": "LABEL_0",
       "confidence": 0.9823,
+      "box": [83, 41, 331, 78],
       "is_invoice_number": false
     },
     {
+      "index": 1,
       "word": "INV-2023-001234",
       "label": "HEURISTIC_MATCH",
       "confidence": 1.0,
+      "box": [352, 37, 542, 72],
       "is_invoice_number": true
     },
     ...
   ],
   "total_words": 127,
-  "model_device": "mps"
+  "model_device": "mps",
+  "image_size": {
+    "width": 1200,
+    "height": 1600
+  }
 }
 ```
 
@@ -156,12 +164,15 @@ The API accepts both:
 - `invoice_number` (string): Extracted invoice number or `"Not Found"`
 - `extraction_method` (string): `"heuristic"` or `"model"`
 - `predictions` (array): Word-level predictions
+  - `index` (integer): Word index in the OCR sequence
   - `word` (string): The word/token
   - `label` (string): Predicted label (`LABEL_0`, `LABEL_1`, `LABEL_2`, or `HEURISTIC_MATCH`)
   - `confidence` (float): Model confidence score (0-1)
+  - `box` (array): Normalized bounding box `[x0, y0, x1, y1]`
   - `is_invoice_number` (boolean): Whether this word is part of the invoice number
 - `total_words` (integer): Total number of words processed
 - `model_device` (string): Device used for inference
+- `image_size` (object): Original uploaded image width and height in pixels
 
 **Label Meanings:**
 
@@ -496,24 +507,15 @@ confident_words = [
 
 ---
 
-## Gradio UI Alternative
+## Frontend Alternative
 
-In addition to the REST API, you can use the **Gradio web interface** at:
+This repository now includes a Vercel-ready Next.js frontend in `frontend/`.
 
-```
-http://localhost:7860/
-```
-
-Features:
-- Drag-and-drop file upload
-- Real-time preview
-- Visual bounding boxes
-- No coding required
-
-Perfect for:
-- Manual testing
-- Demos
-- Non-technical users
+Use it when you want:
+- File upload from the browser
+- Token table review
+- Bounding box overlays driven by the API response
+- A deployable UI separate from the Python inference service
 
 ---
 

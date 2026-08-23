@@ -19,8 +19,8 @@ dependencies = [
     # Web app dependencies
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
-    "gradio>=4.0.0",
     "python-dotenv>=1.0.0",
+    "python-multipart>=0.0.20",
     # ONNX and deployment dependencies
     "onnx>=1.15.0",
     "onnxruntime>=1.16.0",
