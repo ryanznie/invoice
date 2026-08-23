@@ -60,6 +60,18 @@ uv pip install -e ".[dev]"
 uv pip install pytest black ruff mypy
 ```
 
+## Code Review Automation
+
+Greptile is configured through the root `.greptile/` directory:
+
+- `.greptile/config.json` defines review triggers, status checks, ignored generated artifacts, and structured project rules.
+- `.greptile/rules.md` gives Greptile review guidance for API stability, invoice data handling, ML behavior, and deployment consistency.
+- `.greptile/files.json` points Greptile at repo docs it should use as review context.
+
+Greptile is also instructed to include a "PR Understanding Quiz" in each PR summary. The quiz should contain 3-5 multiple-choice questions about the changed code and a collapsible answer key that can be read after attempting the questions.
+
+To activate reviews, install/connect the Greptile GitHub App for this GitHub account or organization, grant it access to this repository, and enable the repository for review in the Greptile dashboard. Once enabled, new pull requests are reviewed automatically; add the `no-greptile`, `skip-greptile`, or `wip-*` label to skip automated review.
+
 ## 📊 Data Labeling
 
 ### Dataset Setup

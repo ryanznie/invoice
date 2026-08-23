@@ -135,13 +135,11 @@ The API accepts both:
     {
       "word": "Invoice",
       "label": "LABEL_0",
-      "confidence": 0.9823,
       "is_invoice_number": false
     },
     {
       "word": "INV-2023-001234",
       "label": "HEURISTIC_MATCH",
-      "confidence": 1.0,
       "is_invoice_number": true
     },
     ...
@@ -158,7 +156,6 @@ The API accepts both:
 - `predictions` (array): Word-level predictions
   - `word` (string): The word/token
   - `label` (string): Predicted label (`LABEL_0`, `LABEL_1`, `LABEL_2`, or `HEURISTIC_MATCH`)
-  - `confidence` (float): Model confidence score (0-1)
   - `is_invoice_number` (boolean): Whether this word is part of the invoice number
 - `total_words` (integer): Total number of words processed
 - `model_device` (string): Device used for inference
@@ -285,7 +282,6 @@ with open("invoice.jpg", "rb") as img, open("ocr_data.json", "rb") as ocr:
     
     print(f"Invoice Number: {result['invoice_number']}")
     print(f"Method: {result['extraction_method']}")
-    print(f"Confidence: {result['predictions'][0]['confidence']}")
 ```
 
 ### Python with `httpx` (Async)
@@ -487,10 +483,10 @@ if invoice_num == "Not Found":
 else:
     print(f"Found: {invoice_num}")
 
-# Get high-confidence predictions
-confident_words = [
+# Get predicted invoice-number words
+invoice_words = [
     p for p in result["predictions"]
-    if p["is_invoice_number"] and p["confidence"] > 0.9
+    if p["is_invoice_number"]
 ]
 ```
 

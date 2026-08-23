@@ -1,0 +1,73 @@
+{
+  "strictness": 2,
+  "commentTypes": ["logic", "syntax", "style"],
+  "triggerOnUpdates": true,
+  "triggerOnDrafts": false,
+  "statusCheck": true,
+  "statusCommentsEnabled": true,
+  "fixWithAI": true,
+  "fileChangeLimit": 40,
+  "disabledLabels": ["no-greptile", "skip-greptile", "wip-*"],
+  "excludeAuthors": ["dependabot[bot]", "*-bot"],
+  "ignorePatterns": ".venv/**\n.ruff_cache/**\n.pytest_cache/**\nhtmlcov/**\ncoverage.xml\nfrontend/.next/**\nfrontend/node_modules/**\nfrontend/.vercel/**\ndata/SROIE2019/**\ndata/train/**\ndata/test/**\nwandb/**\n**/*.onnx\n**/*.safetensors\n**/*.wandb\n**/*.png\n**/*.jpg\n**/*.jpeg\n**/*.zip\n**/__pycache__/**",
+  "summarySection": {
+    "included": true,
+    "collapsible": true,
+    "defaultOpen": true
+  },
+  "issuesTableSection": {
+    "included": true,
+    "collapsible": true,
+    "defaultOpen": true
+  },
+  "confidenceScoreSection": {
+    "included": true,
+    "collapsible": true,
+    "defaultOpen": false
+  },
+  "sequenceDiagramSection": {
+    "included": true,
+    "collapsible": true,
+    "defaultOpen": false
+  },
+  "autoApprove": {
+    "enabled": false
+  },
+  "instructions": "This repository is an invoice NER system with a FastAPI backend, LayoutLMv3/LoRA inference, heuristic and Gemini fallback extraction, Docker/RunPod deployment scripts, and a Next.js frontend. Prioritize correctness, API contract stability, security around uploaded invoice/OCR inputs, model fallback behavior, and changes that could break deployment or observability. In every PR summary, include a section titled \"PR Understanding Quiz\" with 3-5 multiple-choice questions that test whether the author understands the important code paths, tradeoffs, and review risks in the PR. Each question must have four options labeled A-D. Immediately after the quiz, include a collapsible Markdown answer key using <details><summary>Answer key</summary> so the answers are readable after the author attempts the quiz.",
+  "rules": [
+    {
+      "id": "validate-uploaded-inputs",
+      "rule": "API and inference changes must validate uploaded files, OCR JSON/TXT payloads, request size assumptions, and malformed input paths before processing.",
+      "scope": ["app.py", "src/**", "frontend/app/api/**"],
+      "severity": "high"
+    },
+    {
+      "id": "preserve-extraction-contract",
+      "rule": "Changes to extraction outputs must preserve or explicitly document the API response fields used by the frontend and tests, including invoice_number, extraction_method, total_words, and model_device.",
+      "scope": ["app.py", "src/**", "frontend/**", "docs/API_USAGE.md"],
+      "severity": "high"
+    },
+    {
+      "id": "protect-secrets-and-artifacts",
+      "rule": "Do not commit secrets, environment files, generated datasets, model weights, W&B runs, or large binary artifacts. Prefer DVC pointers or documented setup steps for model/data files.",
+      "severity": "high"
+    },
+    {
+      "id": "deployment-config-consistency",
+      "rule": "Docker, docker-compose, RunPod, Triton, and frontend deployment changes must keep ports, environment variables, health checks, and model paths consistent across docs and scripts.",
+      "scope": ["Dockerfile*", "docker-compose.yml", "scripts/**", "triton_model_repo/**", "docs/**", "frontend/**"],
+      "severity": "medium"
+    },
+    {
+      "id": "test-risky-paths",
+      "rule": "Behavioral changes to inference, validation, postprocessing, API routes, or frontend request handling should include focused tests or a clear explanation when tests are not practical.",
+      "scope": ["app.py", "src/**", "tests/**", "frontend/**"],
+      "severity": "medium"
+    },
+    {
+      "id": "include-pr-understanding-quiz",
+      "rule": "Every PR summary should include a concise PR Understanding Quiz with 3-5 multiple-choice questions, four A-D options per question, and a readable collapsible answer key. Questions should focus on code and PR understanding, not trivia.",
+      "severity": "low"
+    }
+  ]
+}
