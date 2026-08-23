@@ -14,6 +14,84 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+NULL_LIKE_INVOICE_VALUES = {"", "null", "none", "n/a", "not found"}
+REFUSAL_OR_PROSE_MARKERS = (
+    "as an ai",
+    "cannot",
+    "can't",
+    "i can",
+    "i found",
+    "i'm unable",
+    "not able",
+    "not visible",
+    "please",
+    "sorry",
+    "unable",
+)
+INVOICE_NUMBER_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._/#:-]{0,63}$")
+
+
+def _looks_like_serialized_json(value: str) -> bool:
+    if not value or value[0] not in "{[":
+        return False
+    try:
+        json.loads(value)
+    except json.JSONDecodeError:
+        return False
+    return True
+
+
+def _is_plausible_invoice_number(value: str) -> bool:
+    lower_value = value.lower()
+
+    if lower_value in NULL_LIKE_INVOICE_VALUES:
+        return False
+    if any(marker in lower_value for marker in REFUSAL_OR_PROSE_MARKERS):
+        return False
+    if _looks_like_serialized_json(value):
+        return False
+    if not re.search(r"\d", value):
+        return False
+    if len(value.split()) > 4:
+        return False
+    return bool(INVOICE_NUMBER_PATTERN.fullmatch(value))
+
+
+def clean_openrouter_invoice_number(text: str) -> Optional[str]:
+    """Parse strict JSON output and return a plausible invoice identifier."""
+    if not text:
+        return None
+
+    cleaned = text.strip()
+    fenced_match = re.search(r"```(?:json)?\s*(.*?)\s*```", cleaned, re.DOTALL)
+    if fenced_match:
+        cleaned = fenced_match.group(1).strip()
+
+    try:
+        parsed = json.loads(cleaned)
+    except json.JSONDecodeError:
+        return None
+
+    if not isinstance(parsed, dict):
+        return None
+
+    value = parsed.get("invoice_number")
+    if value is None or not isinstance(value, str):
+        return None
+
+    cleaned = value.strip()
+
+    prefixes = ["invoice number:", "invoice #:", "inv #:", "no.", "invoice no."]
+    for prefix in prefixes:
+        if cleaned.lower().startswith(prefix):
+            cleaned = cleaned[len(prefix) :].strip()
+            break
+
+    if not _is_plausible_invoice_number(cleaned):
+        return None
+
+    return cleaned
+
 
 class OpenRouterClient:
     """
@@ -139,35 +217,4 @@ class OpenRouterClient:
 
     def _clean_output(self, text: str) -> Optional[str]:
         """Clean up JSON-first model output."""
-        if not text:
-            return None
-
-        cleaned = text.strip()
-        fenced_match = re.search(r"```(?:json)?\s*(.*?)\s*```", cleaned, re.DOTALL)
-        if fenced_match:
-            cleaned = fenced_match.group(1).strip()
-
-        try:
-            parsed = json.loads(cleaned)
-        except json.JSONDecodeError:
-            return None
-
-        if not isinstance(parsed, dict):
-            return None
-
-        value = parsed.get("invoice_number")
-        if value is None or not isinstance(value, str):
-            return None
-
-        cleaned = value.strip()
-
-        if cleaned.lower() in {"", "null", "none", "n/a", "not found"}:
-            return None
-
-        prefixes = ["invoice number:", "invoice #:", "inv #:", "no.", "invoice no."]
-        for prefix in prefixes:
-            if cleaned.lower().startswith(prefix):
-                cleaned = cleaned[len(prefix) :].strip()
-                break
-
-        return cleaned
+        return clean_openrouter_invoice_number(text)

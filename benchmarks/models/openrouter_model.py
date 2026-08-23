@@ -3,10 +3,8 @@ OpenRouter model implementation for invoice extraction benchmarks.
 """
 
 import base64
-import json
 import logging
 import os
-import re
 import time
 from io import BytesIO
 from typing import Any, Dict, List, Optional
@@ -15,6 +13,7 @@ from dotenv import load_dotenv
 from PIL import Image
 
 from benchmarks.models.base import BaseInvoiceModel, InferenceResult
+from src.openrouter import clean_openrouter_invoice_number
 
 load_dotenv()
 
@@ -136,31 +135,7 @@ class OpenRouterModel(BaseInvoiceModel):
         return f"data:image/jpeg;base64,{encoded}"
 
     def _clean_output(self, text: str) -> Optional[str]:
-        if not text:
-            return None
-
-        cleaned = text.strip()
-        fenced_match = re.search(r"```(?:json)?\s*(.*?)\s*```", cleaned, re.DOTALL)
-        if fenced_match:
-            cleaned = fenced_match.group(1).strip()
-
-        try:
-            parsed = json.loads(cleaned)
-        except json.JSONDecodeError:
-            return None
-
-        if not isinstance(parsed, dict):
-            return None
-
-        value = parsed.get("invoice_number")
-        if value is None or not isinstance(value, str):
-            return None
-
-        cleaned = value.strip()
-
-        if cleaned.lower() in {"", "null", "none", "n/a", "not found"}:
-            return None
-        return cleaned
+        return clean_openrouter_invoice_number(text)
 
     def get_config(self) -> Dict[str, Any]:
         """Return model configuration."""
