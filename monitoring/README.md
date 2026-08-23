@@ -2,9 +2,19 @@
 
 ## Start the Stack
 
+Set a local Grafana password before starting the stack:
+
+```bash
+cp .env.example .env
+GRAFANA_ADMIN_PASSWORD="$(openssl rand -base64 24)" >> .env
+```
+
 ```bash
 docker compose up -d --build invoice-ner tritonserver prometheus grafana
 ```
+
+Grafana binds to `127.0.0.1:3000` by default. Set `GRAFANA_HOST=0.0.0.0`
+only when the Docker host is protected by trusted network controls.
 
 ## Smoke Test
 

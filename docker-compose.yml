@@ -79,13 +79,13 @@ services:
     depends_on:
       - prometheus
     ports:
-      - "3000:3000"
+      - "${GRAFANA_HOST:-127.0.0.1}:${GRAFANA_PORT:-3000}:3000"
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in .env before starting Grafana}
 
 networks:
   default:
