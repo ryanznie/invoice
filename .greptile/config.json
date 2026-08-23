@@ -33,7 +33,7 @@
   "autoApprove": {
     "enabled": false
   },
-  "instructions": "This repository is an invoice NER system with a FastAPI backend, LayoutLMv3/LoRA inference, heuristic and Gemini fallback extraction, Docker/RunPod deployment scripts, and a Next.js frontend. Prioritize correctness, API contract stability, security around uploaded invoice/OCR inputs, model fallback behavior, and changes that could break deployment or observability.",
+  "instructions": "This repository is an invoice NER system with a FastAPI backend, LayoutLMv3/LoRA inference, heuristic and Gemini fallback extraction, Docker/RunPod deployment scripts, and a Next.js frontend. Prioritize correctness, API contract stability, security around uploaded invoice/OCR inputs, model fallback behavior, and changes that could break deployment or observability. In every PR summary, include a section titled \"PR Understanding Quiz\" with 3-5 multiple-choice questions that test whether the author understands the important code paths, tradeoffs, and review risks in the PR. Each question must have four options labeled A-D. Immediately after the quiz, include a collapsible Markdown answer key using <details><summary>Answer key</summary> so the answers are readable after the author attempts the quiz.",
   "rules": [
     {
       "id": "validate-uploaded-inputs",
@@ -63,6 +63,11 @@
       "rule": "Behavioral changes to inference, validation, postprocessing, API routes, or frontend request handling should include focused tests or a clear explanation when tests are not practical.",
       "scope": ["app.py", "src/**", "tests/**", "frontend/**"],
       "severity": "medium"
+    },
+    {
+      "id": "include-pr-understanding-quiz",
+      "rule": "Every PR summary should include a concise PR Understanding Quiz with 3-5 multiple-choice questions, four A-D options per question, and a readable collapsible answer key. Questions should focus on code and PR understanding, not trivia.",
+      "severity": "low"
     }
   ]
 }
