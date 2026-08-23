@@ -1,0 +1,16 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+rule_files:
+  - "alert.rules"
+
+scrape_configs:
+  - job_name: 'invoice-ner-app'
+    static_configs:
+      - targets: ['invoice-ner-app:7860']
+
+  - job_name: 'tritonserver'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['tritonserver:8002']
