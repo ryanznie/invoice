@@ -9,7 +9,7 @@
   "fileChangeLimit": 40,
   "disabledLabels": ["no-greptile", "skip-greptile", "wip-*"],
   "excludeAuthors": ["dependabot[bot]", "*-bot"],
-  "ignorePatterns": ".venv/**\n.ruff_cache/**\n.pytest_cache/**\nhtmlcov/**\ncoverage.xml\nfrontend/.next/**\nfrontend/node_modules/**\nfrontend/.vercel/**\ndata/SROIE2019/**\ndata/train/**\ndata/test/**\nmodels/**\nwandb/**\n**/*.onnx\n**/*.safetensors\n**/*.wandb\n**/*.png\n**/*.jpg\n**/*.jpeg\n**/*.zip\n**/__pycache__/**",
+  "ignorePatterns": ".venv/**\n.ruff_cache/**\n.pytest_cache/**\nhtmlcov/**\ncoverage.xml\nfrontend/.next/**\nfrontend/node_modules/**\nfrontend/.vercel/**\ndata/SROIE2019/**\ndata/train/**\ndata/test/**\nwandb/**\n**/*.onnx\n**/*.safetensors\n**/*.wandb\n**/*.png\n**/*.jpg\n**/*.jpeg\n**/*.zip\n**/__pycache__/**",
   "summarySection": {
     "included": true,
     "collapsible": true,
