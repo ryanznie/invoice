@@ -41,6 +41,7 @@ def test_benchmark_openrouter_parses_json_invoice_number():
     model = OpenRouterModel()
 
     assert model._clean_output('{"invoice_number": "INV-123"}') == "INV-123"
+    assert model._clean_output('{"invoice_number": "INV 123"}') == "INV 123"
 
 
 def test_benchmark_openrouter_result_method_is_model_name():
@@ -98,6 +99,7 @@ def test_benchmark_openrouter_rejects_malformed_responses():
     )
     assert model._clean_output('{"invoice_number": "Invoice INV-123"}') is None
     assert model._clean_output('{"invoice_number": "INV-123 extracted"}') is None
+    assert model._clean_output('{"invoice_number": "2024 status5"}') is None
     assert (
         model._clean_output(
             '{"invoice_number": "{\\"invoice_number\\": \\"INV-123\\"}"}'
@@ -116,6 +118,7 @@ def test_fallback_openrouter_parses_json_invoice_number():
     client = OpenRouterClient()
 
     assert client._clean_output('{"invoice_number": "CS-991"}') == "CS-991"
+    assert client._clean_output('{"invoice_number": "CS 991"}') == "CS 991"
 
 
 def test_fallback_openrouter_rejects_malformed_responses():
@@ -133,6 +136,7 @@ def test_fallback_openrouter_rejects_malformed_responses():
     )
     assert client._clean_output('{"invoice_number": "Invoice CS-991"}') is None
     assert client._clean_output('{"invoice_number": "CS-991 extracted"}') is None
+    assert client._clean_output('{"invoice_number": "2024 status5"}') is None
     assert (
         client._clean_output(
             '{"invoice_number": "{\\"invoice_number\\": \\"CS-991\\"}"}'

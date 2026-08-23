@@ -56,7 +56,13 @@ def _is_plausible_invoice_number(value: str) -> bool:
         return False
     if len(tokens) > 4:
         return False
-    if len(tokens) > 1 and any(token.isalpha() for token in tokens):
+    if len(tokens) > 1 and any(
+        token.isalpha() and token != token.upper() for token in tokens
+    ):
+        return False
+    if len(tokens) > 1 and any(
+        re.search(r"[A-Za-z]", token) and token != token.upper() for token in tokens
+    ):
         return False
     return bool(INVOICE_NUMBER_PATTERN.fullmatch(value))
 
