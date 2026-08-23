@@ -31,7 +31,7 @@
     "defaultOpen": false
   },
   "autoApprove": {
-    "enabled": false
+    "enabled": true
   },
   "instructions": "This repository is an invoice NER system with a FastAPI backend, LayoutLMv3/LoRA inference, heuristic and Gemini fallback extraction, Docker/RunPod deployment scripts, and a Next.js frontend. Prioritize correctness, API contract stability, security around uploaded invoice/OCR inputs, model fallback behavior, and changes that could break deployment or observability. In every PR summary, include a section titled \"PR Understanding Quiz\" with 3-5 multiple-choice questions that test whether the author understands the important code paths, tradeoffs, and review risks in the PR. Each question must have four options labeled A-D. Immediately after the quiz, include a collapsible Markdown answer key using <details><summary>Answer key</summary> so the answers are readable after the author attempts the quiz.",
   "rules": [
