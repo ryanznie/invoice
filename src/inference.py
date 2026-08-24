@@ -34,6 +34,7 @@ DEFAULT_MODEL_PATH = "models/artifacts/layoutlmv3_invoice_ner.onnx"
 MODEL_PATH = os.getenv("MODEL_PATH", DEFAULT_MODEL_PATH)
 
 BASE_MODEL = os.getenv("BASE_MODEL", "microsoft/layoutlmv3-base")
+PROCESSOR_PATH = os.getenv("PROCESSOR_PATH")
 MAX_LENGTH = int(os.getenv("MAX_LENGTH", "512"))
 NUM_LABELS = int(os.getenv("NUM_LABELS", "3"))
 
@@ -219,7 +220,7 @@ def load_model():
 
     # Resolve paths
     model_path = MODEL_PATH
-    processor_path = BASE_MODEL
+    processor_path = PROCESSOR_PATH or BASE_MODEL
 
     if os.path.isdir(model_path):
         logger.warning(
@@ -229,7 +230,7 @@ def load_model():
         potential_onnx = os.path.join(model_path, "model.onnx")
         if os.path.exists(potential_onnx):
             model_path = potential_onnx
-    elif os.path.isfile(model_path):
+    elif os.path.isfile(model_path) and not PROCESSOR_PATH:
         processor_path = os.path.dirname(model_path)
     elif not os.path.exists(model_path) and INFERENCE_BACKEND == "onnx":
         print(f"⚠️ MODEL_PATH {model_path} not found.")

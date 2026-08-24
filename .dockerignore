@@ -45,8 +45,13 @@ docs/
 data/
 !data/.gitignore
 
-# Models (will be mounted as volume or downloaded)
+# Models (the ONNX weights live on the Runpod volume, but the processor files
+# are small and should be available without a Hugging Face download at startup)
 models/
+!models/
+!models/artifacts/
+!models/artifacts/*.json
+!models/artifacts/*.txt
 
 # Logs
 *.log
@@ -61,6 +66,8 @@ Dockerfile
 docker-compose.yml
 .dockerignore
 triton_model_repo/
+!triton_model_repo/
+!triton_model_repo/**
 artifacts/
 
 # CI/CD

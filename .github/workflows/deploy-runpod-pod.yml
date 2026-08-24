@@ -1,0 +1,110 @@
+name: Deploy Runpod Pod
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Create a new Pod or update an existing Pod to this image.
+        required: true
+        type: choice
+        options: [create, update]
+      image_tag:
+        description: Immutable GHCR image tag from the publish workflow (for example sha-abc1234).
+        required: true
+        default: latest
+        type: string
+      pod_id:
+        description: Required when action is update.
+        required: false
+        type: string
+      gpu_type:
+        description: Runpod GPU type ID used when action is create.
+        required: false
+        default: NVIDIA RTX A4000
+        type: string
+      gpu_count:
+        description: GPU count used when action is create.
+        required: false
+        default: "1"
+        type: string
+      network_volume_id:
+        description: Existing Runpod Network Volume ID containing the ONNX artifact.
+        required: false
+        type: string
+      registry_auth_id:
+        description: Runpod registry credential ID. Leave empty when the GHCR package is public.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/invoice-ner-runpod
+  RUNPOD_API_URL: https://rest.runpod.io/v1
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: runpod
+    steps:
+      - name: Create or update Pod
+        env:
+          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+          ACTION: ${{ inputs.action }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          POD_ID: ${{ inputs.pod_id }}
+          GPU_TYPE: ${{ inputs.gpu_type }}
+          GPU_COUNT: ${{ inputs.gpu_count }}
+          NETWORK_VOLUME_ID: ${{ inputs.network_volume_id }}
+          REGISTRY_AUTH_ID: ${{ inputs.registry_auth_id }}
+        run: |
+          set -euo pipefail
+
+          test -n "${RUNPOD_API_KEY}" || { echo "Missing RUNPOD_API_KEY environment secret." >&2; exit 1; }
+          image_ref="${IMAGE_NAME}:${IMAGE_TAG}"
+          runtime_env=$(jq -n \
+            --arg model_path "/workspace/models/artifacts/layoutlmv3_invoice_ner.onnx" \
+            '{HOST:"0.0.0.0", PORT:"7860", INFERENCE_BACKEND:"triton", TRITON_URL:"localhost:8000", TRITON_MODEL_NAME:"layoutlmv3-lora-invoice-number", TRITON_MODEL_REPOSITORY:"/workspace/triton_model_repo", MODEL_ONNX_PATH:$model_path, MODEL_PATH:$model_path, PROCESSOR_PATH:"/app/models/artifacts", CORS_ORIGIN_REGEX:"https://.*\\.vercel\\.app"}')
+
+          if [ "${ACTION}" = "create" ]; then
+            payload=$(jq -n \
+              --arg name "invoice-ner-triton" \
+              --arg image_name "${image_ref}" \
+              --arg gpu_type "${GPU_TYPE}" \
+              --arg network_volume_id "${NETWORK_VOLUME_ID}" \
+              --arg registry_auth_id "${REGISTRY_AUTH_ID}" \
+              --argjson gpu_count "${GPU_COUNT}" \
+              --argjson env "${runtime_env}" \
+              '{name:$name, imageName:$image_name, gpuTypeIds:[$gpu_type], gpuCount:$gpu_count, containerDiskInGb:30, minRAMPerGPU:16, minVCPUPerGPU:4, ports:["7860/http"], volumeMountPath:"/workspace", networkVolumeId:(if ($network_volume_id | length) > 0 then $network_volume_id else null end), containerRegistryAuthId:(if ($registry_auth_id | length) > 0 then $registry_auth_id else null end), env:$env}')
+            response=$(curl --fail-with-body --silent --show-error \
+              --request POST "${RUNPOD_API_URL}/pods" \
+              --header "Authorization: Bearer ${RUNPOD_API_KEY}" \
+              --header "Content-Type: application/json" \
+              --data "${payload}")
+          else
+            test -n "${POD_ID}" || { echo "pod_id is required for update." >&2; exit 1; }
+            payload=$(jq -n \
+              --arg image_name "${image_ref}" \
+              --arg registry_auth_id "${REGISTRY_AUTH_ID}" \
+              --argjson env "${runtime_env}" \
+              '{imageName:$image_name, containerRegistryAuthId:(if ($registry_auth_id | length) > 0 then $registry_auth_id else null end), env:$env}')
+            response=$(curl --fail-with-body --silent --show-error \
+              --request PATCH "${RUNPOD_API_URL}/pods/${POD_ID}" \
+              --header "Authorization: Bearer ${RUNPOD_API_KEY}" \
+              --header "Content-Type: application/json" \
+              --data "${payload}")
+          fi
+
+          pod_id=$(jq -r '.id // empty' <<< "${response}")
+          test -n "${pod_id}" || { echo "Runpod did not return a Pod ID: ${response}" >&2; exit 1; }
+          proxy_url="https://${pod_id}-7860.proxy.runpod.net"
+          echo "Runpod Pod: ${pod_id}"
+          echo "Backend URL: ${proxy_url}"
+          {
+            echo "## Runpod deployment"
+            echo
+            echo "- Pod: \`${pod_id}\`"
+            echo "- Backend URL: \`${proxy_url}\`"
+            echo "- Set Vercel \`INVOICE_NER_API_URL\` to the backend URL, then redeploy the frontend."
+          } >> "${GITHUB_STEP_SUMMARY}"
