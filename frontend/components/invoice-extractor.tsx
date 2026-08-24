@@ -67,6 +67,7 @@ export function InvoiceExtractor() {
   const [isLoading, setIsLoading] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [requestStatus, setRequestStatus] = useState<string | null>(null);
+  const [debugEvents, setDebugEvents] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -148,8 +149,19 @@ export function InvoiceExtractor() {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const debug = (message: string) => {
+      const timestamp = new Date().toLocaleTimeString();
+      setDebugEvents((events) => [`${timestamp} ${message}`, ...events].slice(0, 8));
+    };
+
+    debug("Submit handler fired");
 
     if (!imageFile || !ocrFile) {
+      debug(
+        `Blocked: image=${imageFile ? "yes" : "no"}, ocr=${
+          ocrFile ? "yes" : "no"
+        }`,
+      );
       setError("Upload both an invoice image and OCR file.");
       return;
     }
@@ -160,6 +172,7 @@ export function InvoiceExtractor() {
 
     setIsLoading(true);
     setRequestStatus("Uploading to local Next proxy");
+    debug(`POST /api/predict with ${imageFile.name} and ${ocrFile.name}`);
     setError(null);
     setResult(null);
 
@@ -168,6 +181,7 @@ export function InvoiceExtractor() {
         method: "POST",
         body: formData,
       });
+      debug(`Response ${response.status}`);
       setRequestStatus("Parsing backend response");
       const data = (await response.json()) as PredictResponse & { detail?: string };
 
@@ -178,10 +192,12 @@ export function InvoiceExtractor() {
       setRequestStatus("Rendering results");
       setIsLoading(false);
       setResult(data);
+      debug(`Rendered invoice ${data.invoice_number || "Not Found"}`);
       setRequestStatus(null);
     } catch (submitError) {
       const message =
         submitError instanceof Error ? submitError.message : "Prediction failed.";
+      debug(`Error: ${message}`);
       setError(message);
       setIsLoading(false);
       setRequestStatus(null);
@@ -323,6 +339,19 @@ export function InvoiceExtractor() {
                 <p>JSON: words with bboxes or boxes.</p>
               </div>
             </details>
+
+            <section className="space-y-2 border border-border p-4 text-xs">
+              <p className="font-medium">Debug</p>
+              {debugEvents.length ? (
+                debugEvents.map((event) => (
+                  <p className="break-words font-mono text-muted-foreground" key={event}>
+                    {event}
+                  </p>
+                ))
+              ) : (
+                <p className="text-muted-foreground">No submit events yet.</p>
+              )}
+            </section>
           </aside>
 
           <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
