@@ -66,6 +66,7 @@ export function InvoiceExtractor() {
   const [healthMessage, setHealthMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [requestStatus, setRequestStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -158,6 +159,7 @@ export function InvoiceExtractor() {
     formData.append("ocr_file", ocrFile);
 
     setIsLoading(true);
+    setRequestStatus("Uploading to local Next proxy");
     setError(null);
     setResult(null);
 
@@ -166,19 +168,23 @@ export function InvoiceExtractor() {
         method: "POST",
         body: formData,
       });
+      setRequestStatus("Parsing backend response");
       const data = (await response.json()) as PredictResponse & { detail?: string };
 
       if (!response.ok) {
         throw new Error(data.detail || "Prediction failed.");
       }
 
+      setRequestStatus("Rendering results");
       setIsLoading(false);
       setResult(data);
+      setRequestStatus(null);
     } catch (submitError) {
       const message =
         submitError instanceof Error ? submitError.message : "Prediction failed.";
       setError(message);
       setIsLoading(false);
+      setRequestStatus(null);
     }
   }
 
@@ -209,6 +215,10 @@ export function InvoiceExtractor() {
             </span>
           </div>
         </header>
+
+        <p className="mt-3 font-mono text-xs text-muted-foreground">
+          API target: local Next proxy -&gt; {health ? health.device : "backend"}
+        </p>
 
         {healthMessage ? (
           <div className="mt-4 border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
@@ -271,7 +281,7 @@ export function InvoiceExtractor() {
 
               {isLoading ? (
                 <p className="text-center text-xs text-muted-foreground">
-                  Running inference for {elapsedSeconds}s
+                  {requestStatus || "Running inference"} for {elapsedSeconds}s
                 </p>
               ) : null}
 

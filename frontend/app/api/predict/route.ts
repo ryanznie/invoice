@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 
 const apiBaseUrl = process.env.INVOICE_NER_API_URL;
 
+type StreamingRequestInit = RequestInit & {
+  duplex: "half";
+};
+
 async function readBackendResponse(response: Response) {
   const text = await response.text();
 
@@ -25,12 +29,15 @@ export async function POST(request: Request) {
   }
 
   try {
-    const formData = await request.formData();
-    const response = await fetch(`${apiBaseUrl}/predict`, {
+    const contentType = request.headers.get("content-type");
+    const requestInit: StreamingRequestInit = {
       method: "POST",
-      body: formData,
+      body: request.body,
       cache: "no-store",
-    });
+      duplex: "half",
+      headers: contentType ? { "content-type": contentType } : undefined,
+    };
+    const response = await fetch(`${apiBaseUrl}/predict`, requestInit);
     const data = await readBackendResponse(response);
 
     return NextResponse.json(data, { status: response.status });
