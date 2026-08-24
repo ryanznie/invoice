@@ -56,6 +56,7 @@ export function InvoiceExtractor() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [result, setResult] = useState<PredictResponse | null>(null);
   const [health, setHealth] = useState<HealthResponse | null>(null);
+  const [healthMessage, setHealthMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,6 +76,7 @@ export function InvoiceExtractor() {
         }
 
         setHealth(data);
+        setHealthMessage(null);
       } catch (healthError) {
         if (controller.signal.aborted) {
           return;
@@ -83,6 +85,7 @@ export function InvoiceExtractor() {
         const message =
           healthError instanceof Error ? healthError.message : "Health check failed.";
         setHealth(null);
+        setHealthMessage(message);
         setError(message);
       }
     }
@@ -174,6 +177,12 @@ export function InvoiceExtractor() {
             </span>
           </div>
         </header>
+
+        {healthMessage ? (
+          <div className="mt-4 border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            {healthMessage}
+          </div>
+        ) : null}
 
         <div className="grid gap-5 py-5 lg:grid-cols-[340px_minmax(0,1fr)]">
           <aside className="space-y-5">
