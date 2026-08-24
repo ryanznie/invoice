@@ -15,6 +15,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+const MAX_VISIBLE_PREDICTIONS = 500;
+const MAX_VISIBLE_BOXES = 500;
+
 type HealthResponse = {
   status: "healthy" | "unhealthy";
   model_loaded: boolean;
@@ -22,11 +25,11 @@ type HealthResponse = {
 };
 
 type Prediction = {
-  index: number;
+  index?: number;
   word: string;
   label: string;
-  confidence: number;
-  box: [number, number, number, number];
+  confidence?: number;
+  box?: [number, number, number, number];
   is_invoice_number: boolean;
 };
 
@@ -36,7 +39,7 @@ type PredictResponse = {
   predictions: Prediction[];
   total_words: number;
   model_device: string;
-  image_size: {
+  image_size?: {
     width: number;
     height: number;
   };
@@ -44,6 +47,10 @@ type PredictResponse = {
 
 function formatPercent(value: number) {
   return `${Math.round(value * 100)}%`;
+}
+
+function hasBox(prediction: Prediction) {
+  return Array.isArray(prediction.box) && prediction.box.length === 4;
 }
 
 function fileLabel(file: File | null, fallback: string) {
@@ -58,6 +65,7 @@ export function InvoiceExtractor() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [healthMessage, setHealthMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -107,9 +115,33 @@ export function InvoiceExtractor() {
     return () => URL.revokeObjectURL(objectUrl);
   }, [imageFile]);
 
+  useEffect(() => {
+    if (!isLoading) {
+      setElapsedSeconds(0);
+      return;
+    }
+
+    const startedAt = Date.now();
+    const intervalId = window.setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [isLoading]);
+
   const matchedPredictions = useMemo(
     () =>
       result?.predictions.filter((prediction) => prediction.is_invoice_number) ?? [],
+    [result],
+  );
+
+  const visibleBoxes = useMemo(
+    () => result?.predictions.filter(hasBox).slice(0, MAX_VISIBLE_BOXES) ?? [],
+    [result],
+  );
+
+  const visiblePredictions = useMemo(
+    () => result?.predictions.slice(0, MAX_VISIBLE_PREDICTIONS) ?? [],
     [result],
   );
 
@@ -140,12 +172,12 @@ export function InvoiceExtractor() {
         throw new Error(data.detail || "Prediction failed.");
       }
 
+      setIsLoading(false);
       setResult(data);
     } catch (submitError) {
       const message =
         submitError instanceof Error ? submitError.message : "Prediction failed.";
       setError(message);
-    } finally {
       setIsLoading(false);
     }
   }
@@ -237,6 +269,12 @@ export function InvoiceExtractor() {
                 {isLoading ? "Extracting" : "Extract"}
               </Button>
 
+              {isLoading ? (
+                <p className="text-center text-xs text-muted-foreground">
+                  Running inference for {elapsedSeconds}s
+                </p>
+              ) : null}
+
               {error ? (
                 <div className="flex gap-2 border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -299,23 +337,27 @@ export function InvoiceExtractor() {
                       className="h-auto w-full object-contain"
                       src={previewUrl}
                     />
-                    {result?.predictions.map((prediction) => (
-                      <div
-                        key={`${prediction.index}-${prediction.word}`}
-                        className={
-                          prediction.is_invoice_number
-                            ? "absolute border-2 border-primary bg-primary/15 shadow-[0_0_0_9999px_rgba(179,38,30,0.02)]"
-                            : "absolute border border-[hsl(var(--annotation-muted))]"
-                        }
-                        style={{
-                          left: `${prediction.box[0] / 10}%`,
-                          top: `${prediction.box[1] / 10}%`,
-                          width: `${(prediction.box[2] - prediction.box[0]) / 10}%`,
-                          height: `${(prediction.box[3] - prediction.box[1]) / 10}%`,
-                        }}
-                        title={`${prediction.word} (${prediction.label})`}
-                      />
-                    ))}
+                    {visibleBoxes.map((prediction, fallbackIndex) => (
+                        <div
+                          key={`${prediction.index ?? fallbackIndex}-${prediction.word}`}
+                          className={
+                            prediction.is_invoice_number
+                              ? "absolute border-2 border-primary bg-primary/15 shadow-[0_0_0_9999px_rgba(179,38,30,0.02)]"
+                              : "absolute border border-[hsl(var(--annotation-muted))]"
+                          }
+                          style={{
+                            left: `${prediction.box![0] / 10}%`,
+                            top: `${prediction.box![1] / 10}%`,
+                            width: `${
+                              (prediction.box![2] - prediction.box![0]) / 10
+                            }%`,
+                            height: `${
+                              (prediction.box![3] - prediction.box![1]) / 10
+                            }%`,
+                          }}
+                          title={`${prediction.word} (${prediction.label})`}
+                        />
+                      ))}
                   </div>
                 ) : (
                   <div className="flex min-h-[360px] items-center justify-center p-8 text-center text-sm text-muted-foreground">
@@ -330,6 +372,9 @@ export function InvoiceExtractor() {
                 <h2 className="font-semibold">Word predictions</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Highlighted rows form the selected invoice number.
+                  {result && result.predictions.length > visiblePredictions.length
+                    ? ` Showing ${visiblePredictions.length} of ${result.predictions.length}.`
+                    : ""}
                 </p>
               </div>
 
@@ -344,9 +389,9 @@ export function InvoiceExtractor() {
                       </tr>
                     </thead>
                     <tbody>
-                      {result.predictions.map((prediction) => (
+                      {visiblePredictions.map((prediction, fallbackIndex) => (
                         <tr
-                          key={`${prediction.index}-${prediction.word}`}
+                          key={`${prediction.index ?? fallbackIndex}-${prediction.word}`}
                           className={
                             prediction.is_invoice_number
                               ? "border-b border-primary/20 bg-primary/10"
@@ -360,7 +405,9 @@ export function InvoiceExtractor() {
                             {prediction.label}
                           </td>
                           <td className="px-3 py-2 text-right">
-                            {formatPercent(prediction.confidence)}
+                            {typeof prediction.confidence === "number"
+                              ? formatPercent(prediction.confidence)
+                              : "-"}
                           </td>
                         </tr>
                       ))}
