@@ -3,31 +3,33 @@
 @tailwind utilities;
 
 :root {
-  --background: 0 0% 100%;
-  --foreground: 222.2 84% 4.9%;
-  --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 222.2 84% 4.9%;
-  --primary: 222.2 47.4% 11.2%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222.2 47.4% 11.2%;
-  --destructive: 0 72% 46%;
+  --background: 42 31% 96%;
+  --foreground: 210 24% 10%;
+  --card: 44 33% 98%;
+  --card-foreground: 210 24% 10%;
+  --popover: 44 33% 98%;
+  --popover-foreground: 210 24% 10%;
+  --primary: 4 71% 41%;
+  --primary-foreground: 42 31% 96%;
+  --secondary: 198 18% 87%;
+  --secondary-foreground: 210 24% 10%;
+  --muted: 42 19% 89%;
+  --muted-foreground: 210 10% 39%;
+  --accent: 198 26% 82%;
+  --accent-foreground: 210 24% 10%;
+  --destructive: 4 71% 41%;
   --destructive-foreground: 0 0% 98%;
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 222.2 84% 4.9%;
-  --chart-1: 222.2 47.4% 11.2%;
-  --chart-2: 215.4 16.3% 46.9%;
-  --chart-3: 210 40% 96.1%;
-  --chart-4: 0 72% 46%;
-  --chart-5: 210 40% 98%;
-  --radius: 0.75rem;
+  --border: 36 16% 76%;
+  --input: 36 16% 76%;
+  --ring: 4 71% 41%;
+  --chart-1: 4 71% 41%;
+  --chart-2: 198 26% 48%;
+  --chart-3: 41 35% 69%;
+  --chart-4: 210 24% 10%;
+  --chart-5: 42 19% 89%;
+  --preview: 40 24% 91%;
+  --annotation-muted: 198 21% 62%;
+  --radius: 0.5rem;
   --font-sans: "Geist Sans", "Inter", "Segoe UI", sans-serif;
 }
 
@@ -42,4 +44,8 @@ body {
 
 a {
   @apply text-primary underline-offset-4 hover:underline;
+}
+
+::selection {
+  background: hsl(var(--primary) / 0.18);
 }

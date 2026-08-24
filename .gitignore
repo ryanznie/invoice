@@ -1,5 +1,7 @@
 .DS_Store
 .venv/
+**/.next/
+**/node_modules/
 data/SROIE2019/
 .ruff_cache
 **.csv
@@ -27,3 +29,4 @@ wandb/ #logs
 
 # GitHub App credentials
 gha-creds-*.json
+.vercel
