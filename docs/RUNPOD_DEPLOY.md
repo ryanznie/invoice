@@ -30,8 +30,8 @@ deployment files change on `main`:
 Use the immutable `sha-<commit>` tag when deploying. From GitHub Actions, run
 `Deploy Runpod Pod` with:
 
-- `action=create` to create the initial Pod, with the Network Volume ID and a
-  GPU type such as `NVIDIA RTX A4000` or `NVIDIA RTX A5000`.
+- `action=create` to create the initial Pod, with the required Network Volume
+  ID and a GPU type such as `NVIDIA RTX A4000` or `NVIDIA RTX A5000`.
 - `action=update` and the existing Pod ID to replace its image after a release.
 
 The workflow configures the Pod with `7860/http`; Runpod assigns the backend URL:

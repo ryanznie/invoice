@@ -28,7 +28,7 @@ on:
         default: "1"
         type: string
       network_volume_id:
-        description: Existing Runpod Network Volume ID containing the ONNX artifact.
+        description: Existing Runpod Network Volume ID containing the ONNX artifact. Required when action is create.
         required: false
         type: string
       registry_auth_id:
@@ -68,6 +68,7 @@ jobs:
             '{HOST:"0.0.0.0", PORT:"7860", INFERENCE_BACKEND:"triton", TRITON_URL:"localhost:8000", TRITON_MODEL_NAME:"layoutlmv3-lora-invoice-number", TRITON_MODEL_REPOSITORY:"/workspace/triton_model_repo", MODEL_ONNX_PATH:$model_path, MODEL_PATH:$model_path, PROCESSOR_PATH:"/app/models/artifacts", CORS_ORIGIN_REGEX:"https://.*\\.vercel\\.app"}')
 
           if [ "${ACTION}" = "create" ]; then
+            test -n "${NETWORK_VOLUME_ID}" || { echo "network_volume_id is required when action is create." >&2; exit 1; }
             payload=$(jq -n \
               --arg name "invoice-ner-triton" \
               --arg image_name "${image_ref}" \
@@ -76,7 +77,7 @@ jobs:
               --arg registry_auth_id "${REGISTRY_AUTH_ID}" \
               --argjson gpu_count "${GPU_COUNT}" \
               --argjson env "${runtime_env}" \
-              '{name:$name, imageName:$image_name, gpuTypeIds:[$gpu_type], gpuCount:$gpu_count, containerDiskInGb:30, minRAMPerGPU:16, minVCPUPerGPU:4, ports:["7860/http"], volumeMountPath:"/workspace", networkVolumeId:(if ($network_volume_id | length) > 0 then $network_volume_id else null end), containerRegistryAuthId:(if ($registry_auth_id | length) > 0 then $registry_auth_id else null end), env:$env}')
+              '{name:$name, imageName:$image_name, gpuTypeIds:[$gpu_type], gpuCount:$gpu_count, containerDiskInGb:30, minRAMPerGPU:16, minVCPUPerGPU:4, ports:["7860/http"], volumeMountPath:"/workspace", networkVolumeId:$network_volume_id, containerRegistryAuthId:(if ($registry_auth_id | length) > 0 then $registry_auth_id else null end), env:$env}')
             response=$(curl --fail-with-body --silent --show-error \
               --request POST "${RUNPOD_API_URL}/pods" \
               --header "Authorization: Bearer ${RUNPOD_API_KEY}" \
