@@ -6,7 +6,9 @@ is the only service exposed to the Vercel frontend.
 
 ## One-time setup
 
-1. Create a Runpod Network Volume in the same datacenter as the Pod.
+1. Create a Runpod Network Volume in the same datacenter where the Pod will run.
+   The volume is persistent storage for the model file. Without it, the Pod can
+   start the image but cannot load the ONNX model.
 2. Put the DVC-tracked ONNX file on that volume at:
 
    ```text
@@ -15,9 +17,13 @@ is the only service exposed to the Vercel frontend.
 
    The repository's tokenizer files and Triton `config.pbtxt` are built into the
    image. Do not commit the ONNX artifact to Git.
-3. Add `RUNPOD_API_KEY` as an Actions environment secret named `runpod`.
+3. Add `RUNPOD_API_KEY` as an Actions environment secret in the GitHub
+   environment named `runpod`. This lets the deploy workflow create or update
+   the Pod through the Runpod API without exposing the key in the repository.
 4. Make the `ghcr.io/<owner>/invoice-ner-runpod` package public, or create a
    Runpod registry credential and supply its ID when running the deploy workflow.
+   The Pod must be able to pull the GHCR image; public GHCR is simplest for the
+   first deployment.
 
 ## CI/CD
 
@@ -25,10 +31,23 @@ is the only service exposed to the Vercel frontend.
 deployment files change on `main`:
 
 - `latest`
-- `sha-<commit>`
+- `sha-<commit-sha>`
 
-Use the immutable `sha-<commit>` tag when deploying. From GitHub Actions, run
-`Deploy Runpod Pod` with:
+Use the immutable `sha-<commit-sha>` tag when deploying. In the completed
+`Publish Runpod Image` workflow run, open the `Compute image tags` or
+`Build and publish GPU image` step and copy the tag that looks like:
+
+```text
+ghcr.io/<owner>/invoice-ner-runpod:sha-abc1234
+```
+
+When the deploy workflow asks for `image_tag`, enter only the tag portion:
+
+```text
+sha-abc1234
+```
+
+From GitHub Actions, run `Deploy Runpod Pod` with:
 
 - `action=create` to create the initial Pod, with the required Network Volume
   ID and a GPU type such as `NVIDIA RTX A4000` or `NVIDIA RTX A5000`.
