@@ -89,7 +89,7 @@ jobs:
               --arg image_name "${image_ref}" \
               --arg registry_auth_id "${REGISTRY_AUTH_ID}" \
               --argjson env "${runtime_env}" \
-              '{imageName:$image_name, containerRegistryAuthId:(if ($registry_auth_id | length) > 0 then $registry_auth_id else null end), env:$env}')
+              '{imageName:$image_name, env:$env} + (if ($registry_auth_id | length) > 0 then {containerRegistryAuthId:$registry_auth_id} else {} end)')
             response=$(curl --fail-with-body --silent --show-error \
               --request PATCH "${RUNPOD_API_URL}/pods/${POD_ID}" \
               --header "Authorization: Bearer ${RUNPOD_API_KEY}" \
