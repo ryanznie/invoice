@@ -35,14 +35,13 @@ from benchmarks.models.base import BaseInvoiceModel, InferenceResult
 from benchmarks.models.layoutlmv3_model import LayoutLMv3Model
 from benchmarks.models.hybrid_model import HybridModel
 from benchmarks.models.onnx_model import OnnxModel
-from benchmarks.models.gemini_model import GeminiModel
+from benchmarks.models.openrouter_model import OpenRouterModel
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 # Silence noisy loggers
-logging.getLogger("google_genai").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
@@ -710,7 +709,7 @@ def get_model(model_name: str, config: Optional[Dict] = None) -> BaseInvoiceMode
         "hybrid": HybridModel,
         "layoutlmv3": LayoutLMv3Model,
         "onnx": OnnxModel,
-        "gemini": GeminiModel,
+        "openrouter": OpenRouterModel,
     }
 
     if model_name.lower() not in model_registry:
@@ -747,7 +746,7 @@ Examples:
         "--model",
         type=str,
         required=True,
-        choices=["hybrid", "layoutlmv3", "onnx", "gemini"],
+        choices=["hybrid", "layoutlmv3", "onnx", "openrouter"],
         help="Model to benchmark",
     )
 
@@ -809,7 +808,7 @@ Examples:
         "--model-path",
         type=str,
         default=None,
-        help="Path to model file (required for ONNX, optional for others)",
+        help="Path to model file or hosted model ID (required for ONNX, optional for others)",
     )
 
     args = parser.parse_args()

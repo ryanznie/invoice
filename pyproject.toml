@@ -15,7 +15,7 @@ dependencies = [
     "torch",
     "transformers",
     "numpy>=1.24.0",
-    "google-genai==1.57.0", 
+    "openai>=1.0.0",
     # Web app dependencies
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
@@ -45,10 +45,10 @@ dev = [
     # Testing dependencies
     "pytest>=8.0.0",
     "pytest-cov>=4.1.0",
+    "locust>=2.32.0",
     # Benchmarking dependencies
     "wandb>=0.16.0",
     "pyyaml>=6.0.0",
-    "google-genai",
 ]
 
 [project.scripts]

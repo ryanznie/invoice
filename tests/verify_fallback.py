@@ -9,15 +9,15 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from src import inference
 
 
-class TestGeminiFallback(unittest.TestCase):
+class TestOpenRouterFallback(unittest.TestCase):
     def setUp(self):
         # Setup mocks
         self.mock_backend = MagicMock()
-        self.mock_gemini = MagicMock()
+        self.mock_openrouter = MagicMock()
 
         # Inject mocks into inference module
         inference.backend = self.mock_backend
-        inference.gemini_client = self.mock_gemini
+        inference.openrouter_client = self.mock_openrouter
         inference.processor = MagicMock()  # Needs to be something
 
         # Mock inputs
@@ -29,11 +29,12 @@ class TestGeminiFallback(unittest.TestCase):
         # Configure backend to fail
         self.mock_backend.predict.side_effect = Exception("Backend Crash!")
 
-        # Configure Gemini to succeed
-        self.mock_gemini.predict.return_value = {
+        # Configure OpenRouter to succeed
+        self.mock_openrouter.predict.return_value = {
             "invoice_number": "12345",
             "raw_response": "12345",
             "latency_ms": 100,
+            "method": "qwen/qwen2.5-vl-72b-instruct",
         }
 
         # Run prediction
@@ -43,21 +44,21 @@ class TestGeminiFallback(unittest.TestCase):
         # Verify result
         print(f"Result: {result}")
         self.assertEqual(result["invoice_number"], "12345")
-        self.assertEqual(result["method"], "gemini")
+        self.assertEqual(result["method"], "qwen/qwen2.5-vl-72b-instruct")
 
         # Verify calls
         self.mock_backend.predict.assert_called_once()
-        self.mock_gemini.predict.assert_called_once()
+        self.mock_openrouter.predict.assert_called_once()
         print("✅ Fallback success verified")
 
     def test_fallback_failure(self):
         # Configure backend to fail
         self.mock_backend.predict.side_effect = Exception("Backend Crash!")
 
-        # Configure Gemini to fail too
-        self.mock_gemini.predict.return_value = {
+        # Configure OpenRouter to fail too
+        self.mock_openrouter.predict.return_value = {
             "invoice_number": None,
-            "error": "Gemini Error",
+            "error": "OpenRouter Error",
         }
 
         print("\nTesting Fallback Failure...")

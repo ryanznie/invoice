@@ -3,24 +3,61 @@ FastAPI endpoints for Invoice NER API.
 """
 
 import io
-import os
 import json
-import tempfile
 import logging
-from typing import List
+import os
+import tempfile
+import time
 from contextlib import asynccontextmanager
-from PIL import Image
-from fastapi import FastAPI, File, UploadFile, HTTPException
+
+from fastapi import FastAPI, File, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from PIL import Image, UnidentifiedImageError
+from prometheus_client import (
+    CONTENT_TYPE_LATEST,
+    Counter,
+    Histogram,
+    generate_latest,
+)
 from pydantic import BaseModel
 
 from . import inference
 from .heuristics import extract_invoice_heuristics
 from .postprocessing import postprocess_invoice_number
+from .utils import normalize_boxes, parse_ocr_text_file
 from .validation import validate_model_extraction
-from .utils import parse_ocr_text_file, normalize_boxes
 
 logger = logging.getLogger(__name__)
+
+IMAGE_FILE = File(..., description="Invoice image file (JPG, PNG, etc.)")
+OCR_FILE = File(..., description="OCR data file (TXT or JSON format)")
+
+
+INFERENCE_REQUESTS = Counter(
+    "inference_requests_total",
+    "Total invoice extraction requests.",
+    ["method", "status"],
+)
+INFERENCE_ERRORS = Counter(
+    "inference_errors_total",
+    "Total invoice extraction errors.",
+    ["method"],
+)
+INFERENCE_LATENCY = Histogram(
+    "inference_latency_seconds",
+    "End-to-end invoice extraction request latency.",
+    buckets=(0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 30, float("inf")),
+)
+MODEL_INFERENCE_LATENCY = Histogram(
+    "model_inference_latency_seconds",
+    "Model-only inference latency for requests that fall through to the NER model.",
+    ["backend", "model_name"],
+    buckets=(0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, float("inf")),
+)
+FALLBACK_TOTAL = Counter(
+    "fallback_total",
+    "Total requests that fell back from heuristics to model inference.",
+)
 
 
 # ============================================================================
@@ -65,8 +102,8 @@ if cors_origins or cors_origin_regex:
 class PredictionRequest(BaseModel):
     """Request model for predictions"""
 
-    words: List[str]
-    boxes: List[List[int]]
+    words: list[str]
+    boxes: list[list[int]]
 
 
 @app.get("/")
@@ -88,13 +125,38 @@ async def health_check():
         "status": "healthy" if inference.backend is not None else "unhealthy",
         "model_loaded": inference.backend is not None,
         "device": inference.DEVICE,
+        "inference_backend": inference.INFERENCE_BACKEND,
+        "triton_model_name": inference.TRITON_MODEL_NAME,
+    }
+
+
+@app.get("/metrics")
+@app.get("/metrics/")
+async def metrics():
+    """Prometheus metrics endpoint."""
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+@app.get("/runtime/config")
+async def runtime_config():
+    """Return non-secret runtime model serving configuration."""
+    return {
+        "inference_backend": inference.INFERENCE_BACKEND,
+        "device": inference.DEVICE,
+        "model_path": inference.MODEL_PATH,
+        "base_model": inference.BASE_MODEL,
+        "triton_url": inference.TRITON_URL,
+        "triton_model_name": inference.TRITON_MODEL_NAME,
+        "triton_model_version": inference.TRITON_MODEL_VERSION,
+        "model_loaded": inference.backend is not None,
+        "processor_loaded": inference.processor is not None,
     }
 
 
 @app.post("/predict")
 def predict(
-    image: UploadFile = File(..., description="Invoice image file (JPG, PNG, etc.)"),
-    ocr_file: UploadFile = File(..., description="OCR data file (TXT or JSON format)"),
+    image: UploadFile = IMAGE_FILE,
+    ocr_file: UploadFile = OCR_FILE,
 ):
     """
     Extract invoice number from an invoice image and OCR data
@@ -108,7 +170,12 @@ def predict(
     Returns:
         JSON with extracted invoice number, method used, and detailed predictions
     """
+    start_time = time.perf_counter()
+    extraction_method = "unknown"
     if inference.backend is None or inference.processor is None:
+        INFERENCE_ERRORS.labels(method=extraction_method).inc()
+        INFERENCE_REQUESTS.labels(method=extraction_method, status="error").inc()
+        INFERENCE_LATENCY.observe(time.perf_counter() - start_time)
         raise HTTPException(status_code=503, detail="Model not loaded")
 
     try:
@@ -117,8 +184,8 @@ def predict(
         try:
             pil_image = Image.open(io.BytesIO(image_bytes))
             pil_image = pil_image.convert("RGB")
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Invalid image file: {str(e)}")
+        except (UnidentifiedImageError, OSError) as e:
+            raise HTTPException(status_code=400, detail=f"Invalid image file: {e!s}")
 
         img_width, img_height = pil_image.size
 
@@ -171,10 +238,10 @@ def predict(
                 )
 
         except json.JSONDecodeError as e:
-            raise HTTPException(status_code=400, detail=f"Invalid JSON file: {str(e)}")
-        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid JSON file: {e!s}")
+        except (KeyError, TypeError, UnicodeDecodeError, ValueError, OSError) as e:
             raise HTTPException(
-                status_code=400, detail=f"Error parsing OCR file: {str(e)}"
+                status_code=400, detail=f"Error parsing OCR file: {e!s}"
             )
 
         if not words or not boxes:
@@ -200,15 +267,23 @@ def predict(
                 "HEURISTIC_MATCH" if i in matched_indices else "LABEL_0"
                 for i in range(len(words))
             ]
-            confidence_scores = [1.0] * len(words)
         else:
             # Step 2: Fall back to model
             extraction_method = "model"
+            FALLBACK_TOTAL.inc()
             logger.info("🤖 Falling back to LayoutLMv3 model inference")
+            model_start_time = time.perf_counter()
             result = inference.predict_invoice(pil_image, words, boxes)
+            MODEL_INFERENCE_LATENCY.labels(
+                backend=inference.INFERENCE_BACKEND,
+                model_name=(
+                    inference.TRITON_MODEL_NAME
+                    if inference.INFERENCE_BACKEND == "triton"
+                    else os.path.basename(inference.MODEL_PATH)
+                ),
+            ).observe(time.perf_counter() - model_start_time)
             invoice_number = result["invoice_number"]
             labels = result["labels"]
-            confidence_scores = result["confidence_scores"]
             logger.info(f"Model extracted: '{invoice_number}'")
 
             # Step 3: Apply postprocessing to model results
@@ -235,19 +310,18 @@ def predict(
 
         # Build detailed predictions
         predictions = []
-        for i, (word, label, conf) in enumerate(
-            zip(words[: len(labels)], labels, confidence_scores)
-        ):
+        for i, (word, label) in enumerate(zip(words[: len(labels)], labels)):
             predictions.append(
                 {
                     "word": word,
                     "label": label,
-                    "confidence": round(conf, 4),
-                    "is_invoice_number": label.startswith("LABEL_1")
-                    or label.startswith("LABEL_2")
+                    "is_invoice_number": label.startswith(("LABEL_1", "LABEL_2"))
                     or label == "HEURISTIC_MATCH",
                 }
             )
+
+        INFERENCE_REQUESTS.labels(method=extraction_method, status="success").inc()
+        INFERENCE_LATENCY.observe(time.perf_counter() - start_time)
 
         return {
             "invoice_number": invoice_number,
@@ -258,7 +332,13 @@ def predict(
         }
 
     except HTTPException:
+        INFERENCE_ERRORS.labels(method=extraction_method).inc()
+        INFERENCE_REQUESTS.labels(method=extraction_method, status="error").inc()
+        INFERENCE_LATENCY.observe(time.perf_counter() - start_time)
         raise
     except Exception as e:
-        logger.error(f"Error during prediction: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        INFERENCE_ERRORS.labels(method=extraction_method).inc()
+        INFERENCE_REQUESTS.labels(method=extraction_method, status="error").inc()
+        INFERENCE_LATENCY.observe(time.perf_counter() - start_time)
+        logger.exception("Error during prediction")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {e!s}")

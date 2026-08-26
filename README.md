@@ -4,13 +4,13 @@ Named Entity Recognition (NER) for invoice processing using LayoutLMv3 with LoRA
 
 ## ✨ Features
 
-- 🤖 **Hybrid Extraction Pipeline** - Combines fast heuristic pattern matching with deep learning fallback (LayoutLMv3 & Gemini 2.5 Flash)
+- 🤖 **Hybrid Extraction Pipeline** - Combines fast heuristic pattern matching with deep learning fallback (LayoutLMv3 & OpenRouter-hosted VLMs)
 - 🎯 **LayoutLMv3 with LoRA** - Efficient fine-tuning on multimodal document understanding
 - 🌐 **Dual Interface** - REST API for programmatic access + Gradio UI for interactive use
 - 🚀 **Production Ready** - Comprehensive test suite (107 tests), Docker support, health checks
 - 📊 **Multi-Format Support** - Accepts TXT and JSON OCR data formats
 - ⚡ **ONNX Support** - Optimized inference with ONNX Runtime (FP32/FP16/INT8)
-- 📈 **Benchmarking** - Compare models (LayoutLMv3, Gemini, ONNX) with W&B integration
+- 📈 **Benchmarking** - Compare models (LayoutLMv3, OpenRouter VLMs, ONNX) with W&B integration
 - 🔧 **Device Flexible** - Runs on CPU, CUDA (NVIDIA), or MPS (Apple Silicon)
 - 📝 **Interactive Docs** - Auto-generated Swagger/ReDoc API documentation
 
@@ -53,7 +53,7 @@ invoice-ner/
 │   └── 05_evaluations.ipynb    # Evaluation metrics and analysis
 │
 ├── benchmarks/                 # Benchmarking suite
-│   ├── models/                 # Model wrappers (Gemini, ONNX, etc.)
+│   ├── models/                 # Model wrappers (OpenRouter, ONNX, etc.)
 │   ├── benchmark_results/      # Benchmark run results
 │   ├── benchmark.py            # Main benchmark script
 │   └── README.md               # Benchmarking documentation
@@ -357,7 +357,7 @@ For development setup, data labeling, and model training, see [docs/DEV_SETUP.md
 
 The repository includes a comprehensive benchmarking suite to evaluate and compare different models:
 
-- **Supported Models**: LayoutLMv3, Hybrid (Heuristics + Model), ONNX, and Google Gemini 2.5 Flash.
+- **Supported Models**: LayoutLMv3, Hybrid (Heuristics + Model), ONNX, and OpenRouter-hosted VLMs.
 - **Metrics**: Accuracy, Latency (P50/P95/P99), Fallback Rate, and Human Review Rate.
 - **Tracking**: Integrated with Weights & Biases for experiment tracking.
 
