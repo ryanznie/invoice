@@ -1,8 +1,13 @@
 # Runpod Backend Deployment
 
-This deployment runs FastAPI and Triton in one Runpod GPU Pod. FastAPI listens on
-port `7860`, communicates with Triton on the Pod's private `localhost:8000`, and
-is the only service exposed to the Vercel frontend.
+The default deployment runs FastAPI and Triton in one Runpod GPU Pod. FastAPI
+listens on port `7860`, communicates with Triton on the Pod's private
+`localhost:8000`, and is the only service exposed to the Vercel frontend.
+
+For temporary low-cost deployments, the workflow can also create a CPU Pod that
+runs FastAPI directly with ONNX Runtime. CPU inference is slower and lower
+throughput than the GPU/Triton path, but it is useful when GPUs are unavailable
+or the app only needs light demo traffic.
 
 ## One-time setup
 
@@ -20,10 +25,9 @@ is the only service exposed to the Vercel frontend.
 3. Add `RUNPOD_API_KEY` as an Actions environment secret in the GitHub
    environment named `runpod`. This lets the deploy workflow create or update
    the Pod through the Runpod API without exposing the key in the repository.
-4. Make the `ghcr.io/<owner>/invoice-ner-runpod` package public, or create a
-   Runpod registry credential and supply its ID when running the deploy workflow.
-   The Pod must be able to pull the GHCR image; public GHCR is simplest for the
-   first deployment.
+4. Make the GHCR package public, or create a Runpod registry credential and
+   supply its ID when running the deploy workflow. The Pod must be able to pull
+   the GHCR image; public GHCR is simplest for the first deployment.
 
 ## CI/CD
 
@@ -32,6 +36,11 @@ deployment files change on `main`:
 
 - `latest`
 - `sha-<commit-sha>`
+
+It publishes two images with the same tag:
+
+- `ghcr.io/<owner>/invoice-ner-runpod` for the default GPU/Triton backend.
+- `ghcr.io/<owner>/invoice-ner-runpod-cpu` for the CPU/ONNX backend.
 
 Use the immutable `sha-<commit-sha>` tag when deploying. In the completed
 `Publish Runpod Image` workflow run, open the `Compute image tags` or
@@ -52,6 +61,24 @@ From GitHub Actions, run `Deploy Runpod Pod` with:
 - `action=create` to create the initial Pod, with the required Network Volume
   ID and a GPU type such as `NVIDIA RTX A4000` or `NVIDIA RTX A5000`.
 - `action=update` and the existing Pod ID to replace its image after a release.
+
+For the default production path, use:
+
+```text
+backend_target=gpu-triton
+gpu_type=NVIDIA RTX A4000
+gpu_count=1
+vcpu_count=<leave default>
+```
+
+For a temporary CPU deployment, use:
+
+```text
+backend_target=cpu-onnx
+gpu_type=<ignored>
+gpu_count=<ignored>
+vcpu_count=4
+```
 
 The workflow configures the Pod with `7860/http`; Runpod assigns the backend URL:
 

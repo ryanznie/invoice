@@ -1,0 +1,51 @@
+FROM python:3.11.13-slim
+
+WORKDIR /app
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    HOST=0.0.0.0 \
+    PORT=7860 \
+    DEVICE=cpu \
+    INFERENCE_BACKEND=onnx \
+    MODEL_ONNX_PATH=/workspace/models/artifacts/layoutlmv3_invoice_ner.onnx \
+    MODEL_PATH=/workspace/models/artifacts/layoutlmv3_invoice_ner.onnx \
+    PROCESSOR_PATH=/app/models/artifacts \
+    CORS_ORIGIN_REGEX=https://.*\\.vercel\\.app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY pyproject.toml uv.lock* README.md ./
+
+RUN python3 -m pip install --no-cache-dir uv \
+    && uv pip install --system --no-cache \
+        torch --index-url https://download.pytorch.org/whl/cpu \
+    && uv pip install --system --no-cache \
+        transformers \
+        fastapi \
+        uvicorn[standard] \
+        gradio \
+        python-dotenv \
+        python-multipart \
+        pillow \
+        pandas \
+        openai \
+        onnx \
+        onnxruntime \
+        tritonclient[http] \
+        prometheus-client
+
+COPY . .
+
+RUN chmod +x /app/scripts/start_runpod_cpu.sh
+
+EXPOSE 7860
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+    CMD curl --fail http://127.0.0.1:7860/health || exit 1
+
+CMD ["/app/scripts/start_runpod_cpu.sh"]

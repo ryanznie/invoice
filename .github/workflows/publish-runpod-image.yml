@@ -5,7 +5,9 @@ on:
     branches: [main]
     paths:
       - Dockerfile.runpod
+      - Dockerfile.runpod.cpu
       - scripts/start_runpod.sh
+      - scripts/start_runpod_cpu.sh
       - src/**
       - app.py
       - pyproject.toml
@@ -19,12 +21,17 @@ permissions:
   contents: read
   packages: write
 
-env:
-  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/invoice-ner-runpod
-
 jobs:
   publish:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - name: ghcr.io/${{ github.repository_owner }}/invoice-ner-runpod
+            dockerfile: Dockerfile.runpod
+          - name: ghcr.io/${{ github.repository_owner }}/invoice-ner-runpod-cpu
+            dockerfile: Dockerfile.runpod.cpu
 
     steps:
       - name: Check out source
@@ -44,7 +51,7 @@ jobs:
         id: metadata
         uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
         with:
-          images: ${{ env.IMAGE_NAME }}
+          images: ${{ matrix.image.name }}
           tags: |
             type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
@@ -53,7 +60,7 @@ jobs:
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: .
-          file: Dockerfile.runpod
+          file: ${{ matrix.image.dockerfile }}
           push: true
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
