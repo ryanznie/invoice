@@ -99,7 +99,7 @@ jobs:
                 --arg registry_auth_id "${REGISTRY_AUTH_ID}" \
                 --argjson vcpu_count "${VCPU_COUNT}" \
                 --argjson env "${runtime_env}" \
-                '{name:$name, imageName:$image_name, vcpuCount:$vcpu_count, containerDiskInGb:20, ports:["7860/http"], volumeMountPath:"/workspace", networkVolumeId:$network_volume_id, containerRegistryAuthId:(if ($registry_auth_id | length) > 0 then $registry_auth_id else null end), env:$env}')
+                '{name:$name, imageName:$image_name, computeType:"CPU", vcpuCount:$vcpu_count, containerDiskInGb:20, ports:["7860/http"], volumeMountPath:"/workspace", networkVolumeId:$network_volume_id, containerRegistryAuthId:(if ($registry_auth_id | length) > 0 then $registry_auth_id else null end), env:$env}')
             else
               payload=$(jq -n \
                 --arg name "${pod_name}" \
@@ -109,7 +109,7 @@ jobs:
                 --arg registry_auth_id "${REGISTRY_AUTH_ID}" \
                 --argjson gpu_count "${GPU_COUNT}" \
                 --argjson env "${runtime_env}" \
-                '{name:$name, imageName:$image_name, gpuTypeIds:[$gpu_type], gpuCount:$gpu_count, containerDiskInGb:30, minRAMPerGPU:16, minVCPUPerGPU:4, ports:["7860/http"], volumeMountPath:"/workspace", networkVolumeId:$network_volume_id, containerRegistryAuthId:(if ($registry_auth_id | length) > 0 then $registry_auth_id else null end), env:$env}')
+                '{name:$name, imageName:$image_name, computeType:"GPU", gpuTypeIds:[$gpu_type], gpuCount:$gpu_count, containerDiskInGb:30, minRAMPerGPU:16, minVCPUPerGPU:4, ports:["7860/http"], volumeMountPath:"/workspace", networkVolumeId:$network_volume_id, containerRegistryAuthId:(if ($registry_auth_id | length) > 0 then $registry_auth_id else null end), env:$env}')
             fi
             response=$(curl --fail-with-body --silent --show-error \
               --request POST "${RUNPOD_API_URL}/pods" \

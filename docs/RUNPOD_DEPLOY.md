@@ -80,6 +80,10 @@ gpu_count=<ignored>
 vcpu_count=4
 ```
 
+The Runpod UI may not show a CPU option in the normal Pod picker. Use the
+`Deploy Runpod Pod` GitHub Actions workflow for CPU deployment; it creates the
+Pod through the Runpod API with `computeType=CPU`.
+
 The workflow configures the Pod with `7860/http`; Runpod assigns the backend URL:
 
 ```text
