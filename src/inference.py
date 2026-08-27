@@ -4,6 +4,7 @@ Model loading and inference for Invoice NER using ONNX Runtime or Triton Inferen
 
 import os
 import logging
+import threading
 import numpy as np
 from PIL import Image
 from typing import List, Dict
@@ -34,6 +35,7 @@ DEFAULT_MODEL_PATH = "models/artifacts/layoutlmv3_invoice_ner.onnx"
 MODEL_PATH = os.getenv("MODEL_PATH", DEFAULT_MODEL_PATH)
 
 BASE_MODEL = os.getenv("BASE_MODEL", "microsoft/layoutlmv3-base")
+PROCESSOR_PATH = os.getenv("PROCESSOR_PATH")
 MAX_LENGTH = int(os.getenv("MAX_LENGTH", "512"))
 NUM_LABELS = int(os.getenv("NUM_LABELS", "3"))
 
@@ -78,6 +80,10 @@ class InferenceBackend(ABC):
     @abstractmethod
     def predict(self, inputs: Dict[str, np.ndarray]) -> np.ndarray:
         """Run inference and return logits"""
+        pass
+
+    def close(self):
+        """Release backend resources held by the current thread."""
         pass
 
 
@@ -125,16 +131,15 @@ class OnnxBackend(InferenceBackend):
 
 class TritonBackend(InferenceBackend):
     def __init__(self):
-        # We don't store client state to avoid threading issues with gevent
         self.model_name = TRITON_MODEL_NAME
         self.model_version = TRITON_MODEL_VERSION
+        self._thread_local = threading.local()
 
     def load(self, model_path: str):
         # We ignore model_path for Triton connection, but we can verify server health
         print(f"🚀 Connecting to Triton Server at {TRITON_URL}...")
         try:
-            # Create a temporary client for health check
-            client = httpclient.InferenceServerClient(url=TRITON_URL, verbose=False)
+            client = self._get_client()
             if not client.is_server_live():
                 raise ConnectionError("Triton server is not live")
             if not client.is_server_ready():
@@ -149,11 +154,22 @@ class TritonBackend(InferenceBackend):
             print(f"❌ Failed to connect to Triton: {e}")
             raise
 
-    def predict(self, inputs: Dict[str, np.ndarray]) -> np.ndarray:
-        # Create a fresh client for each request to ensure thread safety
-        # when running in a threadpool (FastAPI sync endpoints)
-        try:
+    def _get_client(self):
+        client = getattr(self._thread_local, "client", None)
+        if client is None:
             client = httpclient.InferenceServerClient(url=TRITON_URL, verbose=False)
+            self._thread_local.client = client
+        return client
+
+    def close(self):
+        client = getattr(self._thread_local, "client", None)
+        if client is not None:
+            client.close()
+            self._thread_local.client = None
+
+    def predict(self, inputs: Dict[str, np.ndarray]) -> np.ndarray:
+        try:
+            client = self._get_client()
         except Exception as e:
             raise ValueError(f"Failed to create Triton client: {e}")
 
@@ -219,7 +235,7 @@ def load_model():
 
     # Resolve paths
     model_path = MODEL_PATH
-    processor_path = BASE_MODEL
+    processor_path = PROCESSOR_PATH or BASE_MODEL
 
     if os.path.isdir(model_path):
         logger.warning(
@@ -229,7 +245,7 @@ def load_model():
         potential_onnx = os.path.join(model_path, "model.onnx")
         if os.path.exists(potential_onnx):
             model_path = potential_onnx
-    elif os.path.isfile(model_path):
+    elif os.path.isfile(model_path) and not PROCESSOR_PATH:
         processor_path = os.path.dirname(model_path)
     elif not os.path.exists(model_path) and INFERENCE_BACKEND == "onnx":
         print(f"⚠️ MODEL_PATH {model_path} not found.")

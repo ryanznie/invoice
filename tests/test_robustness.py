@@ -60,9 +60,40 @@ class TestTritonRobustness:
             mock_client.infer.side_effect = Exception("Deadline Exceeded")
             mock_client_cls.return_value = mock_client
 
-            # Predict creates a new client
             with pytest.raises(Exception, match="Deadline Exceeded"):
                 backend.predict({"input": np.zeros((1, 1))})
+
+    def test_triton_reuses_client_within_thread(self):
+        """Avoid rebuilding the Triton HTTP client for every request."""
+        backend = TritonBackend()
+
+        with patch("tritonclient.http.InferenceServerClient") as mock_client_cls:
+            mock_client = Mock()
+            mock_response = Mock()
+            mock_response.get_response.return_value = {"outputs": [{"name": "logits"}]}
+            mock_response.as_numpy.return_value = np.zeros((1, 1, 3))
+            mock_client.infer.return_value = mock_response
+            mock_client_cls.return_value = mock_client
+
+            backend.predict({"input": np.zeros((1, 1))})
+            backend.predict({"input": np.zeros((1, 1))})
+
+            mock_client_cls.assert_called_once()
+            assert mock_client.infer.call_count == 2
+
+    def test_triton_close_releases_current_thread_client(self):
+        """Close the cached Triton client owned by the current thread."""
+        backend = TritonBackend()
+
+        with patch("tritonclient.http.InferenceServerClient") as mock_client_cls:
+            mock_client = Mock()
+            mock_client_cls.return_value = mock_client
+
+            assert backend._get_client() is mock_client
+            backend.close()
+
+            mock_client.close.assert_called_once()
+            assert backend._thread_local.client is None
 
 
 class TestOnnxRobustness:

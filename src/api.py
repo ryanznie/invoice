@@ -11,6 +11,7 @@ import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, File, HTTPException, Response, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image, UnidentifiedImageError
 from prometheus_client import (
     CONTENT_TYPE_LATEST,
@@ -69,7 +70,8 @@ async def lifespan(app: FastAPI):
     """Load model on startup, cleanup on shutdown"""
     inference.load_model()
     yield
-    # Cleanup if needed
+    if inference.backend is not None:
+        inference.backend.close()
     print("🔄 Shutting down...")
 
 
@@ -80,11 +82,41 @@ app = FastAPI(
 )
 
 
+def _get_cors_origins() -> list[str]:
+    raw_origins = os.getenv("CORS_ORIGINS", "")
+    return [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+
+
+cors_origins = _get_cors_origins()
+cors_origin_regex = os.getenv("CORS_ORIGIN_REGEX")
+if cors_origins or cors_origin_regex:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins,
+        allow_origin_regex=cors_origin_regex,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+
 class PredictionRequest(BaseModel):
     """Request model for predictions"""
 
     words: list[str]
     boxes: list[list[int]]
+
+
+@app.get("/")
+async def root():
+    """API root metadata."""
+    return {
+        "name": "Invoice NER API",
+        "status": "ok",
+        "docs_url": "/docs",
+        "predict_url": "/predict",
+        "health_url": "/health",
+    }
 
 
 @app.get("/health")

@@ -1,0 +1,52 @@
+FROM nvcr.io/nvidia/tritonserver:23.10-py3
+
+WORKDIR /app
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    HOST=0.0.0.0 \
+    PORT=7860 \
+    INFERENCE_BACKEND=triton \
+    TRITON_URL=localhost:8000 \
+    TRITON_MODEL_NAME=layoutlmv3-lora-invoice-number \
+    PROCESSOR_PATH=/app/models/artifacts \
+    CORS_ORIGIN_REGEX=https://.*\\.vercel\\.app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY pyproject.toml uv.lock* README.md ./
+
+RUN python3 -m pip install --no-cache-dir uv \
+    && uv pip install --system --no-cache \
+        torch --index-url https://download.pytorch.org/whl/cu121 \
+    && uv pip install --system --no-cache \
+        transformers \
+        fastapi \
+        uvicorn[standard] \
+        gradio \
+        python-dotenv \
+        python-multipart \
+        pillow \
+        pandas \
+        openai \
+        onnx \
+        onnxruntime-gpu \
+        tritonclient[http] \
+        prometheus-client
+
+COPY . .
+
+RUN chmod +x /app/scripts/start_runpod.sh
+
+EXPOSE 7860 8000 8001 8002
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=3 \
+    CMD curl --fail http://127.0.0.1:7860/health || exit 1
+
+CMD ["/app/scripts/start_runpod.sh"]
