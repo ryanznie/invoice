@@ -70,7 +70,8 @@ async def lifespan(app: FastAPI):
     """Load model on startup, cleanup on shutdown"""
     inference.load_model()
     yield
-    # Cleanup if needed
+    if inference.backend is not None:
+        inference.backend.close()
     print("🔄 Shutting down...")
 
 

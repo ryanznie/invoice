@@ -81,6 +81,20 @@ class TestTritonRobustness:
             mock_client_cls.assert_called_once()
             assert mock_client.infer.call_count == 2
 
+    def test_triton_close_releases_current_thread_client(self):
+        """Close the cached Triton client owned by the current thread."""
+        backend = TritonBackend()
+
+        with patch("tritonclient.http.InferenceServerClient") as mock_client_cls:
+            mock_client = Mock()
+            mock_client_cls.return_value = mock_client
+
+            assert backend._get_client() is mock_client
+            backend.close()
+
+            mock_client.close.assert_called_once()
+            assert backend._thread_local.client is None
+
 
 class TestOnnxRobustness:
     """Tests for ONNX Runtime failure modes"""

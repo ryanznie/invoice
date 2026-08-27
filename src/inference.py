@@ -82,6 +82,10 @@ class InferenceBackend(ABC):
         """Run inference and return logits"""
         pass
 
+    def close(self):
+        """Release backend resources held by the current thread."""
+        pass
+
 
 class OnnxBackend(InferenceBackend):
     def __init__(self):
@@ -156,6 +160,12 @@ class TritonBackend(InferenceBackend):
             client = httpclient.InferenceServerClient(url=TRITON_URL, verbose=False)
             self._thread_local.client = client
         return client
+
+    def close(self):
+        client = getattr(self._thread_local, "client", None)
+        if client is not None:
+            client.close()
+            self._thread_local.client = None
 
     def predict(self, inputs: Dict[str, np.ndarray]) -> np.ndarray:
         try:
