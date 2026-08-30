@@ -22,6 +22,7 @@ type HealthResponse = {
   status: "healthy" | "unhealthy";
   model_loaded: boolean;
   device: string;
+  inference_backend?: "onnx" | "triton";
 };
 
 type Prediction = {
@@ -55,6 +56,26 @@ function hasBox(prediction: Prediction) {
 
 function fileLabel(file: File | null, fallback: string) {
   return file ? file.name : fallback;
+}
+
+function runtimeLabel(health: HealthResponse | null, device?: string) {
+  const runtimeDevice = device || health?.device;
+
+  if (!runtimeDevice) {
+    return "-";
+  }
+
+  if (health?.inference_backend === "triton") {
+    return "GPU / Triton";
+  }
+
+  if (health?.inference_backend === "onnx") {
+    return runtimeDevice === "cpu"
+      ? "CPU / ONNX Runtime"
+      : `${runtimeDevice.toUpperCase()} / ONNX Runtime`;
+  }
+
+  return runtimeDevice;
 }
 
 export function InvoiceExtractor() {
@@ -205,6 +226,7 @@ export function InvoiceExtractor() {
   }
 
   const backendReady = health?.status === "healthy" && health.model_loaded;
+  const backendRuntime = runtimeLabel(health);
 
   return (
     <main className="min-h-screen bg-[hsl(var(--background))] text-foreground">
@@ -227,13 +249,13 @@ export function InvoiceExtractor() {
               {backendReady ? "Backend ready" : "Backend unavailable"}
             </Badge>
             <span className="text-muted-foreground">
-              {health ? health.device : "checking"}
+              {health ? backendRuntime : "checking"}
             </span>
           </div>
         </header>
 
         <p className="mt-3 font-mono text-xs text-muted-foreground">
-          API target: local Next proxy -&gt; {health ? health.device : "backend"}
+          API target: local Next proxy -&gt; {health ? backendRuntime : "backend"}
         </p>
 
         {healthMessage ? (
@@ -325,9 +347,9 @@ export function InvoiceExtractor() {
                 <span className="font-medium">{matchedPredictions.length}</span>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <span className="text-muted-foreground">Device</span>
+                <span className="text-muted-foreground">Runtime</span>
                 <span className="font-medium">
-                  {result?.model_device || health?.device || "-"}
+                  {runtimeLabel(health, result?.model_device)}
                 </span>
               </div>
             </section>
