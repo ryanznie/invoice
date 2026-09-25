@@ -54,13 +54,14 @@ def generate_config(model_path: Path, config_path: Path, model_name: str):
         'platform: "onnxruntime_onnx"',
         "max_batch_size: 8",  # Adjust as needed
         "",
-        "dynamic_batching { }",  # Enable dynamic batching
+        "dynamic_batching {",
+        "  preferred_batch_size: [ 4, 8 ]",
+        "  max_queue_delay_microseconds: 100",
+        "}",
         "",
     ]
 
     # Inputs
-    # Inputs
-    # config_lines.append("input [")  <-- Removed list syntax
     for input_tensor in model.graph.input:
         name = input_tensor.name
         # Skip batch dim for Triton config if max_batch_size > 0
@@ -81,12 +82,9 @@ def generate_config(model_path: Path, config_path: Path, model_name: str):
         config_lines.append(f"  data_type: {data_type}")
         config_lines.append(f"  dims: {dims}")
         config_lines.append("}")
-    # config_lines.append("]") <-- Removed list syntax
     config_lines.append("")
 
     # Outputs
-    # Outputs
-    # config_lines.append("output [") <-- Removed list syntax
     for output_tensor in model.graph.output:
         name = output_tensor.name
         dims = [

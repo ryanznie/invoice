@@ -2,7 +2,10 @@ name: "layoutlmv3-lora-invoice-number"
 platform: "onnxruntime_onnx"
 max_batch_size: 8
 
-dynamic_batching { }
+dynamic_batching {
+  preferred_batch_size: [ 4, 8 ]
+  max_queue_delay_microseconds: 100
+}
 
 input {
   name: "pixel_values"
