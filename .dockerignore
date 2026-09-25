@@ -47,7 +47,9 @@ docs/
 data/
 !data/.gitignore
 
-# Models: exclude training artifacts but include the exact CPU runtime bundle.
+# Models: exclude training artifacts. The exception is only used when publishing
+# the dedicated model bundle with Dockerfile.runpod.model; the backend image
+# copies that bundle from its digest-pinned GHCR image.
 models/**
 !models/artifacts/
 !models/artifacts/layoutlmv3_invoice_ner.onnx

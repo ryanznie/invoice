@@ -1,6 +1,13 @@
+ARG MODEL_BUNDLE_IMAGE=ghcr.io/ryanznie/invoice-ner-backend:model-layoutlmv3-onnx-v1@sha256:4af70102cccce71e065ad9568b085074177ef5021ce7f8f849a0eab28fa2be4e
+ARG MODEL_SHA256=fff762ae2eb7976f33137fdef64a9cc04c6cbbbe712a3fb0ae39f298fb8386dc
+
+FROM ${MODEL_BUNDLE_IMAGE} AS model_bundle
+
 FROM python:3.11.13-slim
 
 WORKDIR /app
+
+ARG MODEL_SHA256
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -20,7 +27,10 @@ RUN pip install --no-cache-dir --requirement requirements.runpod-cpu.txt
 COPY src ./src
 COPY scripts ./scripts
 COPY runpod_handler.py ./
-COPY models/artifacts/ ./models/artifacts/
+COPY --from=model_bundle /models/artifacts/ ./models/artifacts/
+
+RUN echo "${MODEL_SHA256}  /app/models/artifacts/layoutlmv3_invoice_ner.onnx" \
+    | sha256sum --check --strict
 
 USER app
 

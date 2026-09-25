@@ -26,6 +26,9 @@ required.
 | --- | --- |
 | GHCR image | `ghcr.io/ryanznie/invoice-ner-backend:v0.3.0-cpu.1` |
 | Image digest | `sha256:f445cb938f383948ecf3206b8265438c17652ac260b841933daf4ea55a288e23` |
+| Model bundle | `ghcr.io/ryanznie/invoice-ner-backend:model-layoutlmv3-onnx-v1` |
+| Model bundle digest | `sha256:4af70102cccce71e065ad9568b085074177ef5021ce7f8f849a0eab28fa2be4e` |
+| ONNX SHA-256 | `fff762ae2eb7976f33137fdef64a9cc04c6cbbbe712a3fb0ae39f298fb8386dc` |
 | Runpod template | `lfb39n8iuf` |
 | Runpod endpoint | `5zp7mr2l2nhbxq` |
 | Vercel production URL | `https://frontend-blond-beta-48.vercel.app` |
@@ -143,6 +146,37 @@ docker buildx build --platform linux/amd64 \
 ```
 
 Always use an immutable version tag. Do not deploy `latest`.
+
+The application image does not read model weights from the local checkout.
+`Dockerfile.runpod.cpu` copies the model and processor files from the public
+model-bundle image pinned by its immutable manifest digest, then verifies the
+ONNX file SHA-256 during the build. This means the command above works from a
+fresh clone containing only the tracked DVC pointer.
+
+### Publish a new model bundle
+
+This is a separate, controlled release step and is only required when model or
+processor files change. Retrieve the DVC artifact on a machine authorized to
+read the model remote, verify the expected file, then publish a new immutable
+model tag:
+
+```bash
+dvc pull models/artifacts/layoutlmv3_invoice_ner.onnx.dvc
+shasum -a 256 models/artifacts/layoutlmv3_invoice_ner.onnx
+
+docker buildx build --platform linux/amd64 \
+  --file Dockerfile.runpod.model \
+  --tag ghcr.io/ryanznie/invoice-ner-backend:model-layoutlmv3-onnx-v2 \
+  --provenance=false \
+  --push .
+
+docker buildx imagetools inspect \
+  ghcr.io/ryanznie/invoice-ner-backend:model-layoutlmv3-onnx-v2
+```
+
+Update both `MODEL_BUNDLE_IMAGE` and `MODEL_SHA256` in
+`Dockerfile.runpod.cpu` to the newly published manifest and file digests. Never
+reference a model bundle by tag alone in the backend Dockerfile.
 
 ## Push to GHCR
 

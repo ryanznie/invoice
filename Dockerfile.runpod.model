@@ -1,0 +1,14 @@
+FROM scratch
+
+LABEL org.opencontainers.image.title="Invoice NER LayoutLMv3 ONNX model bundle" \
+      org.opencontainers.image.description="Pinned runtime model and processor files for the CPU Runpod worker" \
+      ai.invoice-ner.model.sha256="fff762ae2eb7976f33137fdef64a9cc04c6cbbbe712a3fb0ae39f298fb8386dc"
+
+COPY models/artifacts/layoutlmv3_invoice_ner.onnx /models/artifacts/layoutlmv3_invoice_ner.onnx
+COPY models/artifacts/preprocessor_config.json /models/artifacts/preprocessor_config.json
+COPY models/artifacts/processor_config.json /models/artifacts/processor_config.json
+COPY models/artifacts/special_tokens_map.json /models/artifacts/special_tokens_map.json
+COPY models/artifacts/tokenizer.json /models/artifacts/tokenizer.json
+COPY models/artifacts/tokenizer_config.json /models/artifacts/tokenizer_config.json
+COPY models/artifacts/vocab.json /models/artifacts/vocab.json
+COPY models/artifacts/merges.txt /models/artifacts/merges.txt
