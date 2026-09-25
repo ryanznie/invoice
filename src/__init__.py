@@ -33,8 +33,8 @@ from .utils import parse_ocr_text_file, normalize_boxes
 # API
 from .api import app
 
-# Visualization
-from .visualization import create_annotated_image
+# Gradio UI
+from .gradio_ui import create_gradio_interface, gradio_predict, create_annotated_image
 
 __all__ = [
     # Inference
@@ -60,6 +60,8 @@ __all__ = [
     "normalize_boxes",
     # API
     "app",
-    # Visualization
+    # Gradio
+    "create_gradio_interface",
+    "gradio_predict",
     "create_annotated_image",
 ]

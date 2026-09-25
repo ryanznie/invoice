@@ -108,8 +108,7 @@ Test boundary conditions and special cases:
 ### API Tests
 Test FastAPI endpoints:
 - `test_health_check_model_loaded()`
-- `test_root_endpoint_metadata()`
-- `test_predict_returns_boxes_for_frontend()`
+- `test_gradio_predict_error_handling()`
 
 ## Fixtures
 

@@ -28,6 +28,15 @@ Testing guide and validation documentation:
 - CI/CD integration
 - Best practices
 
+### 📈 [PRODUCTION_MONITORING.md](./PRODUCTION_MONITORING.md)
+Production monitoring and SLO guide:
+- Service level indicators and objectives
+- Error budget policy
+- Grafana dashboard layout
+- Load-test profiles
+- Offline eval release gates
+- Incident runbook
+
 ## Quick Links
 
 ### For Developers
@@ -39,6 +48,7 @@ Testing guide and validation documentation:
 ### For Production
 - **API Reference**: [API_USAGE.md](./API_USAGE.md)
 - **Testing & Validation**: [TESTING.md](./TESTING.md)
+- **Monitoring & SLOs**: [PRODUCTION_MONITORING.md](./PRODUCTION_MONITORING.md)
 - **Docker Deployment**: See main [README.md](../README.md)
 
 ### For Research
@@ -53,6 +63,7 @@ docs/
 ├── README.md                   # This file
 ├── API_USAGE.md                # API documentation
 ├── DEV_SETUP.md                # Development setup
+├── PRODUCTION_MONITORING.md    # Monitoring and SLOs
 └── TESTING.md                  # Testing guide
 ```
 

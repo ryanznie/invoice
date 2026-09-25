@@ -1,194 +1,123 @@
 import { NextResponse } from "next/server";
 
-const apiBaseUrl = process.env.INVOICE_NER_API_URL;
+export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
-type MultipartFile = {
-  contentType: string;
-  data: Buffer;
-  filename: string;
+const localApiBaseUrl = process.env.INVOICE_NER_API_URL;
+const runpodEndpointId = process.env.RUNPOD_ENDPOINT_ID;
+const runpodApiKey = process.env.RUNPOD_API_KEY;
+const runpodInvokeBaseUrl =
+  process.env.RUNPOD_INVOKE_BASE_URL ?? "https://api.runpod.ai/v2";
+
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_OCR_BYTES = 2 * 1024 * 1024;
+const TERMINAL_STATUSES = new Set([
+  "COMPLETED",
+  "FAILED",
+  "CANCELLED",
+  "TIMED_OUT",
+]);
+
+type RunpodJob = {
+  id?: string;
+  status?: string;
+  output?: unknown;
+  error?: string;
 };
 
-async function readBackendResponse(response: Response) {
-  const text = await response.text();
+function error(detail: string, status: number) {
+  return NextResponse.json({ detail }, { status });
+}
 
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return {
-      detail: `Backend predict returned ${response.status}: ${
-        text || response.statusText
-      }`,
-    };
+async function callRunpod(formData: FormData) {
+  if (!runpodEndpointId || !runpodApiKey) {
+    return error("Runpod is not configured.", 500);
   }
-}
 
-function getBoundary(contentType: string | null) {
-  const match = contentType?.match(/boundary=(?:"([^"]+)"|([^;]+))/i);
-  return match?.[1] || match?.[2] || null;
-}
+  const image = formData.get("image");
+  const ocrFile = formData.get("ocr_file");
+  if (!(image instanceof File) || !(ocrFile instanceof File)) {
+    return error("An invoice image and OCR TXT/JSON file are required.", 400);
+  }
+  if (image.size > MAX_IMAGE_BYTES) {
+    return error("The invoice image must be 10 MB or smaller.", 413);
+  }
+  if (ocrFile.size > MAX_OCR_BYTES) {
+    return error("The OCR file must be 2 MB or smaller.", 413);
+  }
 
-function parseContentDisposition(value: string) {
-  const fields = new Map<string, string>();
+  const input = {
+    image_base64: Buffer.from(await image.arrayBuffer()).toString("base64"),
+    image_filename: image.name,
+    ocr_base64: Buffer.from(await ocrFile.arrayBuffer()).toString("base64"),
+    ocr_filename: ocrFile.name,
+  };
+  const headers = {
+    Authorization: `Bearer ${runpodApiKey}`,
+    "Content-Type": "application/json",
+  };
+  const endpointUrl = `${runpodInvokeBaseUrl}/${runpodEndpointId}`;
+  const submitted = await fetch(`${endpointUrl}/run`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ input }),
+    cache: "no-store",
+  });
+  const job = (await submitted.json()) as RunpodJob;
+  if (!submitted.ok || !job.id) {
+    console.error("Runpod submission failed", submitted.status, job.status);
+    return error("Unable to start invoice processing.", 502);
+  }
 
-  for (const part of value.split(";")) {
-    const [rawKey, ...rawValue] = part.trim().split("=");
-    if (!rawKey || rawValue.length === 0) {
+  const deadline = Date.now() + 240_000;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+    const statusResponse = await fetch(`${endpointUrl}/status/${job.id}`, {
+      headers: { Authorization: `Bearer ${runpodApiKey}` },
+      cache: "no-store",
+    });
+    const status = (await statusResponse.json()) as RunpodJob;
+
+    if (!statusResponse.ok) {
+      console.error("Runpod status request failed", statusResponse.status);
+      return error("Unable to read invoice processing status.", 502);
+    }
+    if (!status.status || !TERMINAL_STATUSES.has(status.status)) {
       continue;
     }
+    if (status.status === "COMPLETED") {
+      return NextResponse.json(status.output, {
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
 
-    fields.set(rawKey.toLowerCase(), rawValue.join("=").replace(/^"|"$/g, ""));
+    console.error("Runpod job failed", status.status, status.error ?? "");
+    return error("Invoice processing failed. Please try again.", 502);
   }
 
-  return fields;
-}
-
-function parseMultipartFiles(body: Buffer, boundary: string) {
-  const files = new Map<string, MultipartFile>();
-  const boundaryBuffer = Buffer.from(`--${boundary}`);
-  let cursor = 0;
-
-  while (cursor < body.length) {
-    const boundaryStart = body.indexOf(boundaryBuffer, cursor);
-    if (boundaryStart === -1) {
-      break;
-    }
-
-    let partStart = boundaryStart + boundaryBuffer.length;
-    if (body.subarray(partStart, partStart + 2).equals(Buffer.from("--"))) {
-      break;
-    }
-
-    if (body.subarray(partStart, partStart + 2).equals(Buffer.from("\r\n"))) {
-      partStart += 2;
-    }
-
-    const headerEnd = body.indexOf(Buffer.from("\r\n\r\n"), partStart);
-    if (headerEnd === -1) {
-      break;
-    }
-
-    const headerText = body.subarray(partStart, headerEnd).toString("utf8");
-    const headers = new Map<string, string>();
-    for (const line of headerText.split("\r\n")) {
-      const separator = line.indexOf(":");
-      if (separator === -1) {
-        continue;
-      }
-
-      headers.set(
-        line.slice(0, separator).trim().toLowerCase(),
-        line.slice(separator + 1).trim(),
-      );
-    }
-
-    const dataStart = headerEnd + 4;
-    const nextBoundary = body.indexOf(boundaryBuffer, dataStart);
-    if (nextBoundary === -1) {
-      break;
-    }
-
-    const dataEnd =
-      nextBoundary >= 2 &&
-      body.subarray(nextBoundary - 2, nextBoundary).equals(Buffer.from("\r\n"))
-        ? nextBoundary - 2
-        : nextBoundary;
-    const disposition = headers.get("content-disposition");
-
-    if (disposition) {
-      const dispositionFields = parseContentDisposition(disposition);
-      const name = dispositionFields.get("name");
-      const filename = dispositionFields.get("filename");
-
-      if (name && filename) {
-        files.set(name, {
-          contentType: headers.get("content-type") || "application/octet-stream",
-          data: body.subarray(dataStart, dataEnd),
-          filename,
-        });
-      }
-    }
-
-    cursor = nextBoundary;
-  }
-
-  return files;
-}
-
-function toArrayBuffer(buffer: Buffer) {
-  return buffer.buffer.slice(
-    buffer.byteOffset,
-    buffer.byteOffset + buffer.byteLength,
-  ) as ArrayBuffer;
+  return error("Invoice processing is taking longer than expected.", 504);
 }
 
 export async function POST(request: Request) {
-  if (!apiBaseUrl) {
-    return NextResponse.json(
-      { detail: "INVOICE_NER_API_URL is not configured." },
-      { status: 500 },
-    );
-  }
-
   try {
-    const contentType = request.headers.get("content-type");
-    console.info(
-      `[predict proxy] route entered content-length=${request.headers.get(
-        "content-length",
-      )} content-type=${contentType}`,
-    );
-    const boundary = getBoundary(contentType);
-
-    if (!boundary) {
-      return NextResponse.json(
-        { detail: "Predict upload must be multipart/form-data." },
-        { status: 400 },
-      );
+    const formData = await request.formData();
+    if (runpodEndpointId && runpodApiKey) {
+      return await callRunpod(formData);
+    }
+    if (!localApiBaseUrl) {
+      return error("No inference backend is configured.", 500);
     }
 
-    const body = Buffer.from(await request.arrayBuffer());
-    const files = parseMultipartFiles(body, boundary);
-    const image = files.get("image");
-    const ocrFile = files.get("ocr_file");
-
-    if (!image || !ocrFile) {
-      return NextResponse.json(
-        { detail: "Upload both an invoice image and OCR file." },
-        { status: 400 },
-      );
-    }
-
-    console.info(
-      `[predict proxy] received image=${image.filename} (${image.data.length} bytes), ocr_file=${ocrFile.filename} (${ocrFile.data.length} bytes)`,
-    );
-
-    const outgoingFormData = new FormData();
-    outgoingFormData.append(
-      "image",
-      new Blob([toArrayBuffer(image.data)], { type: image.contentType }),
-      image.filename,
-    );
-    outgoingFormData.append(
-      "ocr_file",
-      new Blob([toArrayBuffer(ocrFile.data)], { type: ocrFile.contentType }),
-      ocrFile.filename,
-    );
-
-    const targetUrl = `${apiBaseUrl}/predict`;
-    console.info(`[predict proxy] forwarding to ${targetUrl}`);
-    const response = await fetch(targetUrl, {
+    const response = await fetch(`${localApiBaseUrl}/predict`, {
       method: "POST",
-      body: outgoingFormData,
+      body: formData,
       cache: "no-store",
     });
-    console.info(`[predict proxy] backend responded ${response.status}`);
-    const data = await readBackendResponse(response);
+    const data = await response.json();
 
     return NextResponse.json(data, { status: response.status });
-  } catch (error) {
-    console.error("[predict proxy] failed", error);
-    return NextResponse.json(
-      { detail: "Unable to reach backend predict endpoint." },
-      { status: 502 },
-    );
+  } catch (caught) {
+    console.error("Prediction proxy failed", caught);
+    return error("Unable to reach the inference backend.", 502);
   }
 }

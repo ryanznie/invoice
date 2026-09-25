@@ -1,0 +1,186 @@
+{
+    "annotations": {
+        "list": [
+            {
+                "builtIn": 1,
+                "datasource": "-- Grafana --",
+                "enable": true,
+                "hide": true,
+                "iconColor": "rgba(0, 211, 255, 1)",
+                "name": "Annotations & Alerts",
+                "type": "dashboard"
+            }
+        ]
+    },
+    "editable": true,
+    "gnetId": null,
+    "graphTooltip": 0,
+    "id": 1,
+    "links": [],
+    "panels": [
+        {
+            "title": "Golden Signals",
+            "type": "row",
+            "gridPos": {
+                "h": 1,
+                "w": 24,
+                "x": 0,
+                "y": 0
+            },
+            "id": 1
+        },
+        {
+            "title": "Request Rate (RPS)",
+            "type": "timeseries",
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 0,
+                "y": 1
+            },
+            "id": 2,
+            "datasource": "Prometheus",
+            "targets": [
+                {
+                    "expr": "sum(rate(inference_requests_total[1m])) by (method, status)",
+                    "legendFormat": "{{method}} - {{status}}"
+                }
+            ]
+        },
+        {
+            "title": "Latency (P99 & P50)",
+            "type": "timeseries",
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 8,
+                "y": 1
+            },
+            "id": 3,
+            "datasource": "Prometheus",
+            "targets": [
+                {
+                    "expr": "histogram_quantile(0.99, sum(rate(inference_latency_seconds_bucket[5m])) by (le))",
+                    "legendFormat": "P99"
+                },
+                {
+                    "expr": "histogram_quantile(0.50, sum(rate(inference_latency_seconds_bucket[5m])) by (le))",
+                    "legendFormat": "P50"
+                }
+            ]
+        },
+        {
+            "title": "Error Rate %",
+            "type": "timeseries",
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 16,
+                "y": 1
+            },
+            "id": 4,
+            "datasource": "Prometheus",
+            "targets": [
+                {
+                    "expr": "sum(rate(inference_errors_total[5m])) / sum(rate(inference_requests_total[5m])) * 100",
+                    "legendFormat": "Error %"
+                }
+            ]
+        },
+        {
+            "title": "ML Health",
+            "type": "row",
+            "gridPos": {
+                "h": 1,
+                "w": 24,
+                "x": 0,
+                "y": 9
+            },
+            "id": 5
+        },
+        {
+            "title": "Model-Only Latency",
+            "type": "timeseries",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 0,
+                "y": 10
+            },
+            "id": 6,
+            "datasource": "Prometheus",
+            "targets": [
+                {
+                    "expr": "histogram_quantile(0.50, sum(rate(model_inference_latency_seconds_bucket[5m])) by (le))",
+                    "legendFormat": "P50"
+                },
+                {
+                    "expr": "histogram_quantile(0.95, sum(rate(model_inference_latency_seconds_bucket[5m])) by (le))",
+                    "legendFormat": "P95"
+                },
+                {
+                    "expr": "histogram_quantile(0.99, sum(rate(model_inference_latency_seconds_bucket[5m])) by (le))",
+                    "legendFormat": "P99"
+                },
+                {
+                    "expr": "sum(rate(nv_inference_compute_infer_duration_us[5m])) / sum(rate(nv_inference_exec_count[5m])) / 1000000",
+                    "legendFormat": "Triton compute avg"
+                }
+            ]
+        },
+        {
+            "title": "Fallback Rate",
+            "type": "stat",
+            "gridPos": {
+                "h": 8,
+                "w": 6,
+                "x": 12,
+                "y": 10
+            },
+            "id": 7,
+            "datasource": "Prometheus",
+            "targets": [
+                {
+                    "expr": "sum(rate(fallback_total[5m]))",
+                    "legendFormat": "Fallbacks/sec"
+                }
+            ]
+        },
+        {
+            "title": "Triton GPU Util",
+            "type": "timeseries",
+            "gridPos": {
+                "h": 8,
+                "w": 6,
+                "x": 18,
+                "y": 10
+            },
+            "id": 8,
+            "datasource": "Prometheus",
+            "targets": [
+                {
+                    "expr": "nv_gpu_utilization",
+                    "legendFormat": "GPU Util"
+                }
+            ]
+        }
+    ],
+    "schemaVersion": 30,
+    "style": "dark",
+    "tags": [
+        "invoice-ner",
+        "production"
+    ],
+    "templating": {
+        "list": []
+    },
+    "time": {
+        "from": "now-6h",
+        "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "",
+    "title": "Invoice NER Golden Signals",
+    "uid": "invoice-ner-golden",
+    "version": 1
+}

@@ -73,9 +73,9 @@ jobs:
         uv venv
         source .venv/bin/activate
         uv pip install -e ".[dev]"
-        uv pip install ruff
+        uv pip install ruff==0.5.0
     
     - name: Check code formatting with ruff
       run: |
         source .venv/bin/activate
-        ruff check app.py scripts/ tests/
+        ruff check app.py scripts/*.py tests/*.py

@@ -1,34 +1,48 @@
 import { NextResponse } from "next/server";
 
-const apiBaseUrl = process.env.INVOICE_NER_API_URL;
+export const dynamic = "force-dynamic";
 
-async function readBackendResponse(response: Response) {
-  const text = await response.text();
-
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return {
-      detail: `Backend health returned ${response.status}: ${
-        text || response.statusText
-      }`,
-    };
-  }
-}
+const localApiBaseUrl = process.env.INVOICE_NER_API_URL;
+const runpodEndpointId = process.env.RUNPOD_ENDPOINT_ID;
+const runpodApiKey = process.env.RUNPOD_API_KEY;
+const runpodInvokeBaseUrl =
+  process.env.RUNPOD_INVOKE_BASE_URL ?? "https://api.runpod.ai/v2";
 
 export async function GET() {
-  if (!apiBaseUrl) {
-    return NextResponse.json(
-      { detail: "INVOICE_NER_API_URL is not configured." },
-      { status: 500 },
-    );
-  }
-
   try {
-    const response = await fetch(`${apiBaseUrl}/health`, {
+    if (runpodEndpointId && runpodApiKey) {
+      const response = await fetch(
+        `${runpodInvokeBaseUrl}/${runpodEndpointId}/health`,
+        {
+          headers: { Authorization: `Bearer ${runpodApiKey}` },
+          cache: "no-store",
+        },
+      );
+      if (!response.ok) {
+        return NextResponse.json(
+          { status: "unavailable", scale_to_zero: true },
+          { status: 502 },
+        );
+      }
+      const runpod = await response.json();
+      return NextResponse.json({
+        status: "available",
+        scale_to_zero: true,
+        workers: runpod.workers ?? null,
+      });
+    }
+
+    if (!localApiBaseUrl) {
+      return NextResponse.json(
+        { detail: "No inference backend is configured." },
+        { status: 500 },
+      );
+    }
+
+    const response = await fetch(`${localApiBaseUrl}/health`, {
       cache: "no-store",
     });
-    const data = await readBackendResponse(response);
+    const data = await response.json();
 
     return NextResponse.json(data, { status: response.status });
   } catch {

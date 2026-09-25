@@ -11,16 +11,16 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Set `INVOICE_NER_API_URL` to the FastAPI backend URL. The browser talks to `/api/health` and `/api/predict`; the Next.js server proxies those requests to FastAPI.
+Set `INVOICE_NER_API_URL` to the local FastAPI backend URL. The browser talks to `/api/health` and `/api/predict`; the Next.js server proxies those requests.
 
 ## Vercel
 
 1. Import this repository in Vercel.
 2. Set the project Root Directory to `frontend`.
-3. Add `INVOICE_NER_API_URL` in Vercel environment variables.
+3. Add `RUNPOD_ENDPOINT_ID` and `RUNPOD_API_KEY` in Vercel environment variables. Keep both server-only; never prefix them with `NEXT_PUBLIC_`.
 4. Deploy.
 
 Recommended setup:
 
 - Frontend project name: `invoice-ner-ui`
-- Backend URL value: your stable FastAPI deployment, for example `https://invoice-ner-api.onrender.com`
+- The production proxy submits a Runpod Serverless job and polls it to completion, so scale-to-zero cold starts do not expose the Runpod key to the browser.

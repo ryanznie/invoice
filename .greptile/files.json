@@ -1,0 +1,27 @@
+{
+  "files": [
+    {
+      "path": "README.md",
+      "description": "Repository overview, runtime architecture, quick start, and deployment summary"
+    },
+    {
+      "path": "docs/API_USAGE.md",
+      "description": "Public API contract and example request/response shapes",
+      "scope": ["app.py", "src/**", "frontend/app/api/**"]
+    },
+    {
+      "path": "docs/DEV_SETUP.md",
+      "description": "Developer setup, environment variables, dataset workflow, and local development expectations"
+    },
+    {
+      "path": "docs/RUNPOD_DEPLOY.md",
+      "description": "RunPod deployment flow and production runtime assumptions",
+      "scope": ["Dockerfile*", "docker-compose.yml", "scripts/**", "triton_model_repo/**", "src/api.py"]
+    },
+    {
+      "path": "frontend/README.md",
+      "description": "Frontend setup and Vercel deployment context",
+      "scope": ["frontend/**"]
+    }
+  ]
+}
