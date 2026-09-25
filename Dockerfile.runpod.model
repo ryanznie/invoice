@@ -1,14 +1,25 @@
+# syntax=docker/dockerfile:1.7
+
 FROM scratch
 
-LABEL org.opencontainers.image.title="Invoice NER LayoutLMv3 ONNX model bundle" \
-      org.opencontainers.image.description="Pinned runtime model and processor files for the CPU Runpod worker" \
+ARG HF_MODEL_REVISION=104788531d11cba27701c792098403c8f1eb1409
+
+LABEL org.opencontainers.image.title="layoutlmv3-lora-invoice-number ONNX bundle" \
+      org.opencontainers.image.description="Pinned production ONNX artifact and processor files for the CPU Runpod worker" \
+      org.opencontainers.image.source="https://github.com/ryanznie/invoice" \
+      ai.invoice-ner.huggingface.repository="ryanznie/layoutlmv3-lora-invoice-number" \
+      ai.invoice-ner.huggingface.revision="${HF_MODEL_REVISION}" \
       ai.invoice-ner.model.sha256="fff762ae2eb7976f33137fdef64a9cc04c6cbbbe712a3fb0ae39f298fb8386dc"
 
-COPY models/artifacts/layoutlmv3_invoice_ner.onnx /models/artifacts/layoutlmv3_invoice_ner.onnx
-COPY models/artifacts/preprocessor_config.json /models/artifacts/preprocessor_config.json
-COPY models/artifacts/processor_config.json /models/artifacts/processor_config.json
-COPY models/artifacts/special_tokens_map.json /models/artifacts/special_tokens_map.json
-COPY models/artifacts/tokenizer.json /models/artifacts/tokenizer.json
-COPY models/artifacts/tokenizer_config.json /models/artifacts/tokenizer_config.json
-COPY models/artifacts/vocab.json /models/artifacts/vocab.json
-COPY models/artifacts/merges.txt /models/artifacts/merges.txt
+ADD --chmod=0444 --checksum=sha256:fff762ae2eb7976f33137fdef64a9cc04c6cbbbe712a3fb0ae39f298fb8386dc \
+    https://huggingface.co/ryanznie/layoutlmv3-lora-invoice-number/resolve/${HF_MODEL_REVISION}/onnx/layoutlmv3_invoice_ner.onnx \
+    /models/artifacts/layoutlmv3_invoice_ner.onnx
+ADD --chmod=0444 https://huggingface.co/ryanznie/layoutlmv3-lora-invoice-number/resolve/${HF_MODEL_REVISION}/onnx/model_metadata.json /models/artifacts/model_metadata.json
+ADD --chmod=0444 https://huggingface.co/ryanznie/layoutlmv3-lora-invoice-number/resolve/${HF_MODEL_REVISION}/onnx/model_provenance.json /models/artifacts/model_provenance.json
+ADD --chmod=0444 https://huggingface.co/ryanznie/layoutlmv3-lora-invoice-number/resolve/${HF_MODEL_REVISION}/preprocessor_config.json /models/artifacts/preprocessor_config.json
+ADD --chmod=0444 https://huggingface.co/ryanznie/layoutlmv3-lora-invoice-number/resolve/${HF_MODEL_REVISION}/processor_config.json /models/artifacts/processor_config.json
+ADD --chmod=0444 https://huggingface.co/ryanznie/layoutlmv3-lora-invoice-number/resolve/${HF_MODEL_REVISION}/special_tokens_map.json /models/artifacts/special_tokens_map.json
+ADD --chmod=0444 https://huggingface.co/ryanznie/layoutlmv3-lora-invoice-number/resolve/${HF_MODEL_REVISION}/tokenizer.json /models/artifacts/tokenizer.json
+ADD --chmod=0444 https://huggingface.co/ryanznie/layoutlmv3-lora-invoice-number/resolve/${HF_MODEL_REVISION}/tokenizer_config.json /models/artifacts/tokenizer_config.json
+ADD --chmod=0444 https://huggingface.co/ryanznie/layoutlmv3-lora-invoice-number/resolve/${HF_MODEL_REVISION}/vocab.json /models/artifacts/vocab.json
+ADD --chmod=0444 https://huggingface.co/ryanznie/layoutlmv3-lora-invoice-number/resolve/${HF_MODEL_REVISION}/merges.txt /models/artifacts/merges.txt

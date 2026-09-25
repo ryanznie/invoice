@@ -1,0 +1,45 @@
+{
+  "artifact_version": "onnx-v1",
+  "artifact": {
+    "filename": "layoutlmv3_invoice_ner.onnx",
+    "sha256": "fff762ae2eb7976f33137fdef64a9cc04c6cbbbe712a3fb0ae39f298fb8386dc",
+    "size_bytes": 501607527,
+    "opset": 17
+  },
+  "adapter": {
+    "repository": "ryanznie/layoutlmv3-lora-invoice-number",
+    "revision": "7dc28f5a3b14aa100ba432ee1b0a6cac6c7b2c5c",
+    "sha256": "cd7d75d79d9a8d7778a799e8cff16c0678480060a2abbaba200ffb701865b8e3"
+  },
+  "base_model": {
+    "repository": "microsoft/layoutlmv3-base",
+    "revision": "cfbbbff0762e6aab37086fdd4739ad14fe7d5db4"
+  },
+  "export": {
+    "source_repository": "https://github.com/ryanznie/invoice",
+    "artifact_commit": "ea595ec57e0f73bd2843c785da08bc68c9a2195a",
+    "script": "scripts/export_to_onnx.py",
+    "script_blob": "ae55276c95415a6302567bb25daf4b3a70f88a1b"
+  },
+  "validation": {
+    "type": "pytorch_onnx_token_parity",
+    "runtime": "linux/amd64, CPUExecutionProvider",
+    "input_words": [
+      "INVOICE",
+      "NO",
+      ":",
+      "CS00012944"
+    ],
+    "input_boxes": [
+      [50, 50, 150, 80],
+      [160, 50, 200, 80],
+      [210, 50, 230, 80],
+      [240, 50, 380, 80]
+    ],
+    "output_shape": [1, 512, 3],
+    "prediction_agreement": 1.0,
+    "max_absolute_difference": 0.000007510185241699219,
+    "mean_absolute_difference": 0.00000121741925340757,
+    "passed": true
+  }
+}

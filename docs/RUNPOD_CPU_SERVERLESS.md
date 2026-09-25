@@ -8,7 +8,7 @@ coordinate-bearing TXT or JSON OCR file.
 
 | Setting | Value |
 | --- | --- |
-| Image | `ghcr.io/ryanznie/invoice-ner-backend:v0.3.0-cpu.1` |
+| Image | `ghcr.io/ryanznie/invoice-ner-backend:v0.3.0-cpu.2` |
 | Compute | CPU, `cpu5c-4-8` (4 vCPU / 8 GB) |
 | Workers | minimum 0, maximum 2 |
 | Idle timeout | 300 seconds |
@@ -24,18 +24,21 @@ required.
 
 | Resource | Value |
 | --- | --- |
-| GHCR image | `ghcr.io/ryanznie/invoice-ner-backend:v0.3.0-cpu.1` |
-| Image digest | `sha256:f445cb938f383948ecf3206b8265438c17652ac260b841933daf4ea55a288e23` |
-| Model bundle | `ghcr.io/ryanznie/invoice-ner-backend:model-layoutlmv3-onnx-v1` |
-| Model bundle digest | `sha256:4af70102cccce71e065ad9568b085074177ef5021ce7f8f849a0eab28fa2be4e` |
+| GHCR image | `ghcr.io/ryanznie/invoice-ner-backend:v0.3.0-cpu.2` |
+| Image digest | `sha256:e5621052dc83c22def76ae3273b3b3fcfa882d9c1578680d2b68e968fd5bcb1e` |
+| Hugging Face model | `ryanznie/layoutlmv3-lora-invoice-number` |
+| Hugging Face revision | `104788531d11cba27701c792098403c8f1eb1409` (`onnx-v1`) |
+| Public GHCR model mirror | `ghcr.io/ryanznie/layoutlmv3-lora-invoice-number:onnx-v1.0.1` |
+| Model mirror digest | `sha256:36d77af14e749233ff0a6f6ff445a6d790e86248bbd3bca21a9f0e74535bf0ba` |
 | ONNX SHA-256 | `fff762ae2eb7976f33137fdef64a9cc04c6cbbbe712a3fb0ae39f298fb8386dc` |
 | Runpod template | `lfb39n8iuf` |
 | Runpod endpoint | `5zp7mr2l2nhbxq` |
 | Vercel production URL | `https://frontend-blond-beta-48.vercel.app` |
 
-The GHCR package is public so Runpod can pull it without a stored registry
-credential. The Runpod API key is stored only as a sensitive Vercel environment
-variable and in the local Runpod CLI credential file.
+Both GHCR packages and the Hugging Face model are public. Runpod can pull the
+worker without a stored registry credential. The Runpod API key is stored only
+as a sensitive Vercel environment variable and in the local Runpod CLI
+credential file.
 
 ## Backend-only testing
 
@@ -74,10 +77,9 @@ run its handler with the fixture directory mounted read-only:
 ```bash
 docker run --rm --platform linux/amd64 \
   --volume "$PWD/data/SROIE2019/test:/fixtures:ro" \
-  --volume "$PWD/scripts:/app/test-scripts:ro" \
   --entrypoint python \
-  ghcr.io/ryanznie/invoice-ner-backend:v0.3.0-cpu.1 \
-  test-scripts/smoke_test_runpod_backend.py \
+  ghcr.io/ryanznie/invoice-ner-backend:v0.3.0-cpu.2 \
+  scripts/smoke_test_runpod_backend.py \
   --image /fixtures/img/X00016469670.jpg \
   --ocr /fixtures/box/X00016469670.txt \
   --expected PEGIV-1030765
@@ -105,7 +107,7 @@ uv run python scripts/smoke_test_runpod_backend.py \
   --image data/SROIE2019/test/img/X00016469670.jpg \
   --ocr data/SROIE2019/test/box/X00016469670.txt \
   --payload-only \
-| runpodctl serverless run 5zp7mr2l2nhbxq --input - --wait 15m \
+| runpodctl serverless run 5zp7mr2l2nhbxq --input-file - --wait 15m \
 | jq '{status, delayTime, executionTime, output: {
     invoice_number: .output.invoice_number,
     extraction_method: .output.extraction_method,
@@ -141,48 +143,63 @@ Runpod workers are Linux AMD64 even when the image is built from Apple Silicon:
 ```bash
 docker buildx build --platform linux/amd64 \
   --file Dockerfile.runpod.cpu \
-  --tag ghcr.io/ryanznie/invoice-ner-backend:v0.3.0-cpu.1 \
+  --tag ghcr.io/ryanznie/invoice-ner-backend:v0.3.0-cpu.2 \
   --load .
 ```
 
 Always use an immutable version tag. Do not deploy `latest`.
 
 The application image does not read model weights from the local checkout.
-`Dockerfile.runpod.cpu` copies the model and processor files from the public
-model-bundle image pinned by its immutable manifest digest, then verifies the
-ONNX file SHA-256 during the build. This means the command above works from a
-fresh clone containing only the tracked DVC pointer.
+`Dockerfile.runpod.cpu` downloads the model and processor files from the exact
+Hugging Face commit shown above, then verifies the ONNX SHA-256 during the
+build. The build therefore works from a fresh clone and cannot silently follow
+a moving `main` revision.
 
 ### Publish a new model bundle
 
 This is a separate, controlled release step and is only required when model or
-processor files change. Retrieve the DVC artifact on a machine authorized to
-read the model remote, verify the expected file, then publish a new immutable
-model tag:
+processor files change. Stage the ONNX artifact, metadata, provenance, model
+card, and processor configuration, then upload them in one Hugging Face commit:
 
 ```bash
-dvc pull models/artifacts/layoutlmv3_invoice_ner.onnx.dvc
 shasum -a 256 models/artifacts/layoutlmv3_invoice_ner.onnx
 
+release_dir=$(mktemp -d)
+mkdir -p "$release_dir/onnx"
+cp models/artifacts/layoutlmv3_invoice_ner.onnx "$release_dir/onnx/"
+cp models/artifacts/model_metadata.json "$release_dir/onnx/"
+cp models/artifacts/model_provenance.json "$release_dir/onnx/"
+cp models/artifacts/processor_config.json "$release_dir/"
+cp models/layoutlmv3-lora-invoice-number/README.md "$release_dir/README.md"
+
+hf upload ryanznie/layoutlmv3-lora-invoice-number "$release_dir" . \
+  --commit-message "Publish ONNX production artifact"
+```
+
+Read the resulting full Hub commit SHA and pin it, together with the ONNX hash,
+in both Runpod Dockerfiles. Never use `main` for a production build. The public
+GHCR mirror uses the same canonical model name:
+
+```bash
 docker buildx build --platform linux/amd64 \
   --file Dockerfile.runpod.model \
-  --tag ghcr.io/ryanznie/invoice-ner-backend:model-layoutlmv3-onnx-v2 \
+  --tag ghcr.io/ryanznie/layoutlmv3-lora-invoice-number:onnx-v2.0.0 \
   --provenance=false \
   --push .
 
 docker buildx imagetools inspect \
-  ghcr.io/ryanznie/invoice-ner-backend:model-layoutlmv3-onnx-v2
+  ghcr.io/ryanznie/layoutlmv3-lora-invoice-number:onnx-v2.0.0
 ```
 
-Update both `MODEL_BUNDLE_IMAGE` and `MODEL_SHA256` in
-`Dockerfile.runpod.cpu` to the newly published manifest and file digests. Never
-reference a model bundle by tag alone in the backend Dockerfile.
+Run the PyTorch-to-ONNX parity check and the real invoice container test before
+publishing a new worker image. Store the resulting revisions, hashes, and test
+results in `model_provenance.json`.
 
 ## Push to GHCR
 
 ```bash
 gh auth token | docker login ghcr.io --username ryanznie --password-stdin
-docker push ghcr.io/ryanznie/invoice-ner-backend:v0.3.0-cpu.1
+docker push ghcr.io/ryanznie/invoice-ner-backend:v0.3.0-cpu.2
 ```
 
 If the package remains private, create a least-privileged GitHub token with
@@ -194,10 +211,21 @@ the template. A public package does not need registry credentials.
 Authenticate first with `flash login` or a locally stored `RUNPOD_API_KEY`. Never
 commit the key.
 
+For the existing production endpoint, update its template and verify that the
+scale-to-zero settings were preserved:
+
+```bash
+runpodctl template update lfb39n8iuf \
+  --image ghcr.io/ryanznie/invoice-ner-backend:v0.3.0-cpu.2
+runpodctl serverless get 5zp7mr2l2nhbxq
+```
+
+For a new installation, create a serverless template:
+
 ```bash
 runpodctl template create \
   --name invoice-ner-cpu-v0-3-0 \
-  --image ghcr.io/ryanznie/invoice-ner-backend:v0.3.0-cpu.1 \
+  --image ghcr.io/ryanznie/invoice-ner-backend:v0.3.0-cpu.2 \
   --serverless \
   --container-disk-in-gb 5
 ```
@@ -247,3 +275,6 @@ A scale-to-zero endpoint can show no active workers while idle. The first reques
 starts a worker and includes image-pull and model-load latency. See
 [Backend-only testing](#backend-only-testing) for generating a real payload and
 testing locally, inside Docker, or against the deployed endpoint.
+
+The most recent parity, container, and live Runpod results are recorded in
+[`artifacts/runpod-onnx-v1-validation.json`](artifacts/runpod-onnx-v1-validation.json).
