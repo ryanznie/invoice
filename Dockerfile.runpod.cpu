@@ -2,50 +2,26 @@ FROM python:3.11.13-slim
 
 WORKDIR /app
 
-ENV DEBIAN_FRONTEND=noninteractive \
+ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    HOST=0.0.0.0 \
-    PORT=7860 \
     DEVICE=cpu \
     INFERENCE_BACKEND=onnx \
-    MODEL_ONNX_PATH=/workspace/models/artifacts/layoutlmv3_invoice_ner.onnx \
-    MODEL_PATH=/workspace/models/artifacts/layoutlmv3_invoice_ner.onnx \
-    PROCESSOR_PATH=/app/models/artifacts \
-    CORS_ORIGIN_REGEX=https://.*\\.vercel\\.app
+    MODEL_PATH=/app/models/artifacts/layoutlmv3_invoice_ner.onnx \
+    BASE_MODEL=/app/models/artifacts \
+    ENABLE_OPENROUTER_FALLBACK=false \
+    MAX_IMAGE_BYTES=10485760 \
+    MAX_OCR_BYTES=2097152
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+RUN groupadd --system app && useradd --system --gid app --create-home app
 
-COPY pyproject.toml uv.lock* README.md ./
+COPY requirements.runpod-cpu.txt ./
+RUN pip install --no-cache-dir --requirement requirements.runpod-cpu.txt
 
-RUN python3 -m pip install --no-cache-dir uv \
-    && uv pip install --system --no-cache \
-        torch --index-url https://download.pytorch.org/whl/cpu \
-    && uv pip install --system --no-cache \
-        transformers \
-        fastapi \
-        uvicorn[standard] \
-        gradio \
-        python-dotenv \
-        python-multipart \
-        pillow \
-        pandas \
-        openai \
-        onnx \
-        onnxruntime \
-        tritonclient[http] \
-        prometheus-client
+COPY src ./src
+COPY scripts ./scripts
+COPY runpod_handler.py ./
+COPY models/artifacts/ ./models/artifacts/
 
-COPY . .
+USER app
 
-RUN chmod +x /app/scripts/start_runpod_cpu.sh
-
-EXPOSE 7860
-
-HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
-    CMD curl --fail http://127.0.0.1:7860/health || exit 1
-
-CMD ["/app/scripts/start_runpod_cpu.sh"]
+CMD ["python", "-u", "runpod_handler.py"]

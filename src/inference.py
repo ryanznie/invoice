@@ -11,8 +11,6 @@ from typing import List, Dict
 from transformers import LayoutLMv3Processor
 import onnxruntime as ort
 from abc import ABC, abstractmethod
-import tritonclient.http as httpclient
-from .openrouter import OpenRouterClient
 
 from .validation import validate_image, validate_words, validate_boxes
 
@@ -38,6 +36,9 @@ BASE_MODEL = os.getenv("BASE_MODEL", "microsoft/layoutlmv3-base")
 PROCESSOR_PATH = os.getenv("PROCESSOR_PATH")
 MAX_LENGTH = int(os.getenv("MAX_LENGTH", "512"))
 NUM_LABELS = int(os.getenv("NUM_LABELS", "3"))
+ENABLE_OPENROUTER_FALLBACK = os.getenv(
+    "ENABLE_OPENROUTER_FALLBACK", "false"
+).lower() in {"1", "true", "yes", "on"}
 
 # Device selection: environment variable > MPS > CPU
 # Note: ONNX Runtime providers need to be configured explicitly
@@ -83,7 +84,7 @@ class InferenceBackend(ABC):
         pass
 
     def close(self):
-        """Release backend resources held by the current thread."""
+        """Release resources held by the backend."""
         pass
 
 
@@ -131,8 +132,11 @@ class OnnxBackend(InferenceBackend):
 
 class TritonBackend(InferenceBackend):
     def __init__(self):
+        import tritonclient.http as httpclient
+
         self.model_name = TRITON_MODEL_NAME
         self.model_version = TRITON_MODEL_VERSION
+        self._httpclient = httpclient
         self._thread_local = threading.local()
 
     def load(self, model_path: str):
@@ -157,7 +161,9 @@ class TritonBackend(InferenceBackend):
     def _get_client(self):
         client = getattr(self._thread_local, "client", None)
         if client is None:
-            client = httpclient.InferenceServerClient(url=TRITON_URL, verbose=False)
+            client = self._httpclient.InferenceServerClient(
+                url=TRITON_URL, verbose=False
+            )
             self._thread_local.client = client
         return client
 
@@ -184,7 +190,7 @@ class TritonBackend(InferenceBackend):
 
             # Explicit type conversion might be safer since Triton follows strong typing
             triton_type = self._get_triton_datatype(data.dtype)
-            infer_input = httpclient.InferInput(name, data.shape, triton_type)
+            infer_input = self._httpclient.InferInput(name, data.shape, triton_type)
             infer_input.set_data_from_numpy(data)
             triton_inputs.append(infer_input)
 
@@ -278,11 +284,18 @@ def load_model():
 
     # Initialize OpenRouter Client for fallback
     global openrouter_client
-    openrouter_client = OpenRouterClient()
-    # We do a lazy load in predict, but we can verify API key here if needed
-    if not os.getenv("OPENROUTER_API_KEY"):
+    openrouter_client = None
+    if ENABLE_OPENROUTER_FALLBACK:
+        from .openrouter import OpenRouterClient
+
+        openrouter_client = OpenRouterClient()
+        if not os.getenv("OPENROUTER_API_KEY"):
+            logger.warning(
+                "OpenRouter fallback is enabled but OPENROUTER_API_KEY is not set."
+            )
+    else:
         logger.warning(
-            "OPENROUTER_API_KEY not found. OpenRouter fallback will be disabled."
+            "OpenRouter fallback is disabled. Set ENABLE_OPENROUTER_FALLBACK=true to opt in."
         )
 
 

@@ -8,6 +8,8 @@ env/
 venv/
 ENV/
 .venv
+**/node_modules/
+**/.next/
 
 # Jupyter Notebooks
 .ipynb_checkpoints
@@ -45,13 +47,17 @@ docs/
 data/
 !data/.gitignore
 
-# Models (the ONNX weights live on the Runpod volume, but the processor files
-# are small and should be available without a Hugging Face download at startup)
-models/
-!models/
+# Models: exclude training artifacts but include the exact CPU runtime bundle.
+models/**
 !models/artifacts/
-!models/artifacts/*.json
-!models/artifacts/*.txt
+!models/artifacts/layoutlmv3_invoice_ner.onnx
+!models/artifacts/preprocessor_config.json
+!models/artifacts/processor_config.json
+!models/artifacts/special_tokens_map.json
+!models/artifacts/tokenizer.json
+!models/artifacts/tokenizer_config.json
+!models/artifacts/vocab.json
+!models/artifacts/merges.txt
 
 # Logs
 *.log
