@@ -11,6 +11,7 @@ import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, File, HTTPException, Response, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image, UnidentifiedImageError
 from prometheus_client import (
     CONTENT_TYPE_LATEST,
@@ -30,6 +31,8 @@ logger = logging.getLogger(__name__)
 
 IMAGE_FILE = File(..., description="Invoice image file (JPG, PNG, etc.)")
 OCR_FILE = File(..., description="OCR data file (TXT or JSON format)")
+MAX_IMAGE_BYTES = int(os.getenv("MAX_IMAGE_BYTES", str(10 * 1024 * 1024)))
+MAX_OCR_BYTES = int(os.getenv("MAX_OCR_BYTES", str(2 * 1024 * 1024)))
 
 
 INFERENCE_REQUESTS = Counter(
@@ -69,7 +72,8 @@ async def lifespan(app: FastAPI):
     """Load model on startup, cleanup on shutdown"""
     inference.load_model()
     yield
-    # Cleanup if needed
+    if inference.backend is not None:
+        inference.backend.close()
     print("🔄 Shutting down...")
 
 
@@ -80,11 +84,41 @@ app = FastAPI(
 )
 
 
+def _get_cors_origins() -> list[str]:
+    raw_origins = os.getenv("CORS_ORIGINS", "")
+    return [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+
+
+cors_origins = _get_cors_origins()
+cors_origin_regex = os.getenv("CORS_ORIGIN_REGEX")
+if cors_origins or cors_origin_regex:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins,
+        allow_origin_regex=cors_origin_regex,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+
 class PredictionRequest(BaseModel):
     """Request model for predictions"""
 
     words: list[str]
     boxes: list[list[int]]
+
+
+@app.get("/")
+async def root():
+    """API root metadata."""
+    return {
+        "name": "Invoice NER API",
+        "status": "ok",
+        "docs_url": "/docs",
+        "predict_url": "/predict",
+        "health_url": "/health",
+    }
 
 
 @app.get("/health")
@@ -97,6 +131,14 @@ async def health_check():
         "inference_backend": inference.INFERENCE_BACKEND,
         "triton_model_name": inference.TRITON_MODEL_NAME,
     }
+
+
+@app.get("/ping")
+async def runpod_health_check():
+    """Runpod load-balancer compatible readiness endpoint."""
+    if inference.backend is None or inference.processor is None:
+        return Response(status_code=204)
+    return {"status": "healthy"}
 
 
 @app.get("/metrics")
@@ -149,7 +191,12 @@ def predict(
 
     try:
         # Read and validate image
-        image_bytes = image.file.read()
+        image_bytes = image.file.read(MAX_IMAGE_BYTES + 1)
+        if len(image_bytes) > MAX_IMAGE_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"Image exceeds the {MAX_IMAGE_BYTES // (1024 * 1024)} MB limit",
+            )
         try:
             pil_image = Image.open(io.BytesIO(image_bytes))
             pil_image = pil_image.convert("RGB")
@@ -159,8 +206,13 @@ def predict(
         img_width, img_height = pil_image.size
 
         # Read and parse OCR file
-        ocr_bytes = ocr_file.file.read()
-        ocr_filename = ocr_file.filename.lower()
+        ocr_bytes = ocr_file.file.read(MAX_OCR_BYTES + 1)
+        if len(ocr_bytes) > MAX_OCR_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"OCR file exceeds the {MAX_OCR_BYTES // (1024 * 1024)} MB limit",
+            )
+        ocr_filename = (ocr_file.filename or "").lower()
 
         try:
             if ocr_filename.endswith(".json"):
@@ -231,7 +283,7 @@ def predict(
         if invoice_number:
             # Heuristic found a match
             extraction_method = "heuristic"
-            logger.info(f"Using heuristic extraction result: '{invoice_number}'")
+            logger.info("Using heuristic extraction result")
             labels = [
                 "HEURISTIC_MATCH" if i in matched_indices else "LABEL_0"
                 for i in range(len(words))
@@ -253,7 +305,7 @@ def predict(
             ).observe(time.perf_counter() - model_start_time)
             invoice_number = result["invoice_number"]
             labels = result["labels"]
-            logger.info(f"Model extracted: '{invoice_number}'")
+            logger.info("Model extraction completed")
 
             # Step 3: Apply postprocessing to model results
             if invoice_number:
@@ -263,18 +315,18 @@ def predict(
             if invoice_number and not validate_model_extraction(invoice_number):
                 if ";" in invoice_number:
                     logger.warning(
-                        f"✗ Rejected model extraction '{invoice_number}': contains semicolon"
+                        "Rejected model extraction because it contains a semicolon"
                     )
                 else:
                     logger.warning(
-                        f"✗ Rejected model extraction '{invoice_number}': no letters or numbers"
+                        "Rejected model extraction because it has no letters or numbers"
                     )
                 invoice_number = None
 
         # Final result
         invoice_number = invoice_number or "Not Found"
         logger.info("=" * 60)
-        logger.info(f"API RESULT: '{invoice_number}' (via {extraction_method})")
+        logger.info("API extraction completed via %s", extraction_method)
         logger.info("=" * 60)
 
         # Build detailed predictions
@@ -310,4 +362,10 @@ def predict(
         INFERENCE_REQUESTS.labels(method=extraction_method, status="error").inc()
         INFERENCE_LATENCY.observe(time.perf_counter() - start_time)
         logger.exception("Error during prediction")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {e!s}")
+        detail = (
+            f"Internal server error: {e!s}"
+            if os.getenv("EXPOSE_INTERNAL_ERRORS", "false").lower()
+            in {"1", "true", "yes", "on"}
+            else "Internal server error"
+        )
+        raise HTTPException(status_code=500, detail=detail)

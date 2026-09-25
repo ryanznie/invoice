@@ -190,6 +190,9 @@ curl -X POST http://localhost:7860/predict \
 
 For detailed API documentation with code examples in Python, JavaScript, and more, see **[docs/API_USAGE.md](docs/API_USAGE.md)**.
 
+To test only the Runpod backend—without Vercel—see
+**[Backend-only testing](docs/RUNPOD_CPU_SERVERLESS.md#backend-only-testing)**.
+
 ## 🔧 Configuration
 
 ### Using .env File (Recommended)

@@ -1,0 +1,51 @@
+# syntax=docker/dockerfile:1.7
+
+FROM scratch AS model_bundle
+
+ARG HF_MODEL_REVISION=104788531d11cba27701c792098403c8f1eb1409
+
+ADD --chmod=0444 --checksum=sha256:fff762ae2eb7976f33137fdef64a9cc04c6cbbbe712a3fb0ae39f298fb8386dc \
+    https://huggingface.co/ryanznie/layoutlmv3-lora-invoice-number/resolve/${HF_MODEL_REVISION}/onnx/layoutlmv3_invoice_ner.onnx \
+    /models/artifacts/layoutlmv3_invoice_ner.onnx
+ADD --chmod=0444 https://huggingface.co/ryanznie/layoutlmv3-lora-invoice-number/resolve/${HF_MODEL_REVISION}/onnx/model_metadata.json /models/artifacts/model_metadata.json
+ADD --chmod=0444 https://huggingface.co/ryanznie/layoutlmv3-lora-invoice-number/resolve/${HF_MODEL_REVISION}/onnx/model_provenance.json /models/artifacts/model_provenance.json
+ADD --chmod=0444 https://huggingface.co/ryanznie/layoutlmv3-lora-invoice-number/resolve/${HF_MODEL_REVISION}/preprocessor_config.json /models/artifacts/preprocessor_config.json
+ADD --chmod=0444 https://huggingface.co/ryanznie/layoutlmv3-lora-invoice-number/resolve/${HF_MODEL_REVISION}/processor_config.json /models/artifacts/processor_config.json
+ADD --chmod=0444 https://huggingface.co/ryanznie/layoutlmv3-lora-invoice-number/resolve/${HF_MODEL_REVISION}/special_tokens_map.json /models/artifacts/special_tokens_map.json
+ADD --chmod=0444 https://huggingface.co/ryanznie/layoutlmv3-lora-invoice-number/resolve/${HF_MODEL_REVISION}/tokenizer.json /models/artifacts/tokenizer.json
+ADD --chmod=0444 https://huggingface.co/ryanznie/layoutlmv3-lora-invoice-number/resolve/${HF_MODEL_REVISION}/tokenizer_config.json /models/artifacts/tokenizer_config.json
+ADD --chmod=0444 https://huggingface.co/ryanznie/layoutlmv3-lora-invoice-number/resolve/${HF_MODEL_REVISION}/vocab.json /models/artifacts/vocab.json
+ADD --chmod=0444 https://huggingface.co/ryanznie/layoutlmv3-lora-invoice-number/resolve/${HF_MODEL_REVISION}/merges.txt /models/artifacts/merges.txt
+
+FROM python:3.11.13-slim
+
+WORKDIR /app
+
+ARG MODEL_SHA256=fff762ae2eb7976f33137fdef64a9cc04c6cbbbe712a3fb0ae39f298fb8386dc
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    DEVICE=cpu \
+    INFERENCE_BACKEND=onnx \
+    MODEL_PATH=/app/models/artifacts/layoutlmv3_invoice_ner.onnx \
+    BASE_MODEL=/app/models/artifacts \
+    ENABLE_OPENROUTER_FALLBACK=false \
+    MAX_IMAGE_BYTES=10485760 \
+    MAX_OCR_BYTES=2097152
+
+RUN groupadd --system app && useradd --system --gid app --create-home app
+
+COPY requirements.runpod-cpu.txt ./
+RUN pip install --no-cache-dir --requirement requirements.runpod-cpu.txt
+
+COPY src ./src
+COPY scripts ./scripts
+COPY runpod_handler.py ./
+COPY --from=model_bundle /models/artifacts/ ./models/artifacts/
+
+RUN echo "${MODEL_SHA256}  /app/models/artifacts/layoutlmv3_invoice_ner.onnx" \
+    | sha256sum --check --strict
+
+USER app
+
+CMD ["python", "-u", "runpod_handler.py"]

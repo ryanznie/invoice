@@ -8,6 +8,8 @@ env/
 venv/
 ENV/
 .venv
+**/node_modules/
+**/.next/
 
 # Jupyter Notebooks
 .ipynb_checkpoints
@@ -45,8 +47,9 @@ docs/
 data/
 !data/.gitignore
 
-# Models (will be mounted as volume or downloaded)
-models/
+# Models are supplied from the immutable Hugging Face revision pinned in
+# Dockerfile.runpod.model, never from a developer's local checkout.
+models/**
 
 # Logs
 *.log
@@ -61,6 +64,8 @@ Dockerfile
 docker-compose.yml
 .dockerignore
 triton_model_repo/
+!triton_model_repo/
+!triton_model_repo/**
 artifacts/
 
 # CI/CD
