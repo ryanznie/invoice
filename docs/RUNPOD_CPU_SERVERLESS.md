@@ -34,6 +34,103 @@ The GHCR package is public so Runpod can pull it without a stored registry
 credential. The Runpod API key is stored only as a sensitive Vercel environment
 variable and in the local Runpod CLI credential file.
 
+## Backend-only testing
+
+These checks bypass Vercel completely. The test fixture below includes both the
+invoice image and its bounding-box OCR data.
+
+### 1. Run the fast handler tests
+
+```bash
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run pytest -o addopts='' \
+  tests/test_runpod_handler.py \
+  tests/test_runpod_smoke_script.py
+```
+
+This validates request decoding, file validation, and payload generation without
+loading the model or starting a Runpod worker.
+
+### 2. Run the real backend locally
+
+```bash
+uv run python scripts/smoke_test_runpod_backend.py \
+  --image data/SROIE2019/test/img/X00016469670.jpg \
+  --ocr data/SROIE2019/test/box/X00016469670.txt \
+  --expected PEGIV-1030765
+```
+
+This calls the same `runpod_handler.handler` function used in production and
+runs the real CPU inference stack in the current Python environment. A mismatch
+returns a non-zero exit code, which makes the command suitable for CI.
+
+### 3. Test the production container locally
+
+Build the image as described in [Build and validate](#build-and-validate), then
+run its handler with the fixture directory mounted read-only:
+
+```bash
+docker run --rm --platform linux/amd64 \
+  --volume "$PWD/data/SROIE2019/test:/fixtures:ro" \
+  --volume "$PWD/scripts:/app/test-scripts:ro" \
+  --entrypoint python \
+  ghcr.io/ryanznie/invoice-ner-backend:v0.3.0-cpu.1 \
+  test-scripts/smoke_test_runpod_backend.py \
+  --image /fixtures/img/X00016469670.jpg \
+  --ocr /fixtures/box/X00016469670.txt \
+  --expected PEGIV-1030765
+```
+
+This catches missing dependencies, model artifacts, and image architecture
+problems before a deployment.
+
+### 4. Call the live Runpod endpoint directly
+
+Install or update `runpodctl`, then authenticate once with `runpodctl doctor` or
+set `RUNPOD_API_KEY` in your shell. Never put the key in the command, payload, or
+repository.
+
+Check the endpoint first:
+
+```bash
+runpodctl serverless health 5zp7mr2l2nhbxq
+```
+
+Generate the base64 payload and send it directly to Runpod:
+
+```bash
+uv run python scripts/smoke_test_runpod_backend.py \
+  --image data/SROIE2019/test/img/X00016469670.jpg \
+  --ocr data/SROIE2019/test/box/X00016469670.txt \
+  --payload-only \
+| runpodctl serverless run 5zp7mr2l2nhbxq --input - --wait 15m \
+| jq '{status, delayTime, executionTime, output: {
+    invoice_number: .output.invoice_number,
+    extraction_method: .output.extraction_method,
+    model_device: .output.model_device
+  }}'
+```
+
+`runpodctl` adds the outer `{"input": ...}` envelope, so the generated JSON
+must not include it. The expected invoice number is `PEGIV-1030765`. Because the
+endpoint scales to zero, the first request after an idle period also includes
+container startup and model-load time. It wakes a billable worker for the job;
+the worker becomes eligible to scale back to zero after the 300-second idle
+timeout.
+
+If a job exceeds the local wait budget, do not submit it again. Use the job ID
+printed by `runpodctl`:
+
+```bash
+runpodctl serverless status 5zp7mr2l2nhbxq <job-id> --wait 10m
+```
+
+For a job that is stuck or failed, inspect health and recent worker logs:
+
+```bash
+runpodctl serverless health 5zp7mr2l2nhbxq
+runpodctl serverless logs 5zp7mr2l2nhbxq --since 15m
+```
+
 ## Build and validate
 
 Runpod workers are Linux AMD64 even when the image is built from Apple Silicon:
@@ -109,8 +206,10 @@ verification:
 
 ```bash
 runpodctl serverless health <endpoint-id>
-runpodctl serverless run <endpoint-id> --input-file payload.json --wait 10m
+runpodctl serverless run <endpoint-id> --input-file payload.json --wait 15m
 ```
 
 A scale-to-zero endpoint can show no active workers while idle. The first request
-starts a worker and includes image-pull and model-load latency.
+starts a worker and includes image-pull and model-load latency. See
+[Backend-only testing](#backend-only-testing) for generating a real payload and
+testing locally, inside Docker, or against the deployed endpoint.
