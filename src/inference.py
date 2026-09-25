@@ -7,7 +7,11 @@ import logging
 import numpy as np
 from PIL import Image
 from typing import List, Dict
-from transformers import LayoutLMv3Processor
+from transformers import (
+    LayoutLMv3ImageProcessor,
+    LayoutLMv3Processor,
+    LayoutLMv3TokenizerFast,
+)
 import onnxruntime as ort
 from abc import ABC, abstractmethod
 import tritonclient.http as httpclient
@@ -213,6 +217,48 @@ class TritonBackend(InferenceBackend):
 # ============================================================================
 
 
+def _build_layoutlmv3_processor(processor_path: str) -> LayoutLMv3Processor:
+    """Load a LayoutLMv3 processor, including split image/tokenizer configs."""
+    try:
+        return LayoutLMv3Processor.from_pretrained(processor_path, apply_ocr=False)
+    except Exception as exc:
+        if not os.path.isdir(processor_path):
+            raise
+
+        logger.warning(
+            "Falling back to manual LayoutLMv3 processor assembly for %s: %s",
+            processor_path,
+            exc,
+        )
+        image_processor = LayoutLMv3ImageProcessor.from_pretrained(
+            processor_path, apply_ocr=False
+        )
+        tokenizer = LayoutLMv3TokenizerFast.from_pretrained(processor_path)
+        return LayoutLMv3Processor(
+            image_processor=image_processor,
+            tokenizer=tokenizer,
+        )
+
+
+def _processor_candidates(model_path: str, processor_path: str) -> List[str]:
+    candidates = []
+    seen = set()
+
+    for candidate in (
+        processor_path,
+        os.path.dirname(model_path) if os.path.isfile(model_path) else None,
+        "models/artifacts",
+        "models/layoutlmv3-lora-invoice-number",
+        BASE_MODEL,
+    ):
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        candidates.append(candidate)
+
+    return candidates
+
+
 def load_model():
     """Load the model (backend) and processor"""
     global processor, backend
@@ -235,13 +281,20 @@ def load_model():
         print(f"⚠️ MODEL_PATH {model_path} not found.")
 
     # Load processor
-    try:
-        processor = LayoutLMv3Processor.from_pretrained(processor_path, apply_ocr=False)
-        print(f"✅ Processor loaded from {processor_path}")
-    except Exception as e:
-        print(f"⚠️ Could not load processor from {processor_path}: {e}")
-        print(f"   Falling back to base model: {BASE_MODEL}")
-        processor = LayoutLMv3Processor.from_pretrained(BASE_MODEL, apply_ocr=False)
+    processor_errors = []
+    for candidate in _processor_candidates(model_path, processor_path):
+        try:
+            processor = _build_layoutlmv3_processor(candidate)
+            print(f"✅ Processor loaded from {candidate}")
+            break
+        except Exception as e:
+            processor_errors.append(f"{candidate}: {e}")
+            print(f"⚠️ Could not load processor from {candidate}: {e}")
+    else:
+        raise RuntimeError(
+            "Failed to load LayoutLMv3 processor from any known location. Errors: "
+            + " | ".join(processor_errors)
+        )
 
     # Initialize Backend
     print(f"👉 Initializing Inference Backend: {INFERENCE_BACKEND.upper()}")
