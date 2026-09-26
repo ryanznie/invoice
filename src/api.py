@@ -69,11 +69,9 @@ FALLBACK_TOTAL = Counter(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Load model on startup, cleanup on shutdown"""
+    """Load the inference model when the API starts."""
     inference.load_model()
     yield
-    if inference.backend is not None:
-        inference.backend.close()
     print("🔄 Shutting down...")
 
 

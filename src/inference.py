@@ -4,7 +4,6 @@ Model loading and inference for Invoice NER using ONNX Runtime or Triton Inferen
 
 import os
 import logging
-import threading
 import numpy as np
 from PIL import Image
 from typing import List, Dict
@@ -83,10 +82,6 @@ class InferenceBackend(ABC):
         """Run inference and return logits"""
         pass
 
-    def close(self):
-        """Release resources held by the backend."""
-        pass
-
 
 class OnnxBackend(InferenceBackend):
     def __init__(self):
@@ -137,13 +132,14 @@ class TritonBackend(InferenceBackend):
         self.model_name = TRITON_MODEL_NAME
         self.model_version = TRITON_MODEL_VERSION
         self._httpclient = httpclient
-        self._thread_local = threading.local()
 
     def load(self, model_path: str):
         # We ignore model_path for Triton connection, but we can verify server health
         print(f"🚀 Connecting to Triton Server at {TRITON_URL}...")
         try:
-            client = self._get_client()
+            client = self._httpclient.InferenceServerClient(
+                url=TRITON_URL, verbose=False
+            )
             if not client.is_server_live():
                 raise ConnectionError("Triton server is not live")
             if not client.is_server_ready():
@@ -158,24 +154,11 @@ class TritonBackend(InferenceBackend):
             print(f"❌ Failed to connect to Triton: {e}")
             raise
 
-    def _get_client(self):
-        client = getattr(self._thread_local, "client", None)
-        if client is None:
+    def predict(self, inputs: Dict[str, np.ndarray]) -> np.ndarray:
+        try:
             client = self._httpclient.InferenceServerClient(
                 url=TRITON_URL, verbose=False
             )
-            self._thread_local.client = client
-        return client
-
-    def close(self):
-        client = getattr(self._thread_local, "client", None)
-        if client is not None:
-            client.close()
-            self._thread_local.client = None
-
-    def predict(self, inputs: Dict[str, np.ndarray]) -> np.ndarray:
-        try:
-            client = self._get_client()
         except Exception as e:
             raise ValueError(f"Failed to create Triton client: {e}")
 
