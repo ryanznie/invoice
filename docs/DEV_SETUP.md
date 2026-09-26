@@ -191,6 +191,7 @@ All configuration is managed through environment variables. Copy `.env.example` 
 | `BASE_MODEL` | `microsoft/layoutlmv3-base` | Base model identifier |
 | `MAX_LENGTH` | `512` | Maximum sequence length for model input |
 | `NUM_LABELS` | `3` | Number of NER labels (O, B-INVOICE_NUMBER, I-INVOICE_NUMBER) |
+| `ENABLE_OPENROUTER_FALLBACK` | `false` | Explicitly enable the hosted fallback |
 | `OPENROUTER_API_KEY` | `""` | API key for OpenRouter fallback |
 | `OPENROUTER_MODEL` | `qwen/qwen2.5-vl-72b-instruct` | Hosted vision model for fallback |
 | `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | OpenRouter OpenAI-compatible endpoint |
@@ -201,7 +202,10 @@ All configuration is managed through environment variables. Copy `.env.example` 
 #### Server Configuration
 
 > [!NOTE]
-> **OpenRouter Fallback**: If the primary local model fails, the system automatically attempts to extract the invoice number using the configured OpenRouter vision model. This requires the `OPENROUTER_API_KEY` environment variable to be set.
+> **OpenRouter Fallback**: The hosted fallback is disabled by default. To use it
+> when the primary local model fails, set both
+> `ENABLE_OPENROUTER_FALLBACK=true` and `OPENROUTER_API_KEY`. The Runpod CPU
+> image includes the OpenAI-compatible client but does not enable it automatically.
 
 | Variable | Default | Description |
 |----------|---------|-------------|

@@ -20,6 +20,11 @@ coordinate-bearing TXT or JSON OCR file.
 The model and processor files are baked into the image. A network volume is not
 required.
 
+OpenRouter support is installed but remains an explicit opt-in. To enable it,
+set `ENABLE_OPENROUTER_FALLBACK=true` and provide `OPENROUTER_API_KEY` as a
+sensitive Runpod template environment variable. Setting the API key alone does
+not enable external fallback requests.
+
 ## Production resources
 
 | Resource | Value |
