@@ -1,4 +1,5 @@
-# Use Python 3.10 slim image as base
+# Local web/API image. Production Runpod serverless builds use
+# Dockerfile.runpod.cpu instead.
 FROM python:3.11.13-slim
 
 # Set working directory

@@ -47,8 +47,8 @@ docs/
 data/
 !data/.gitignore
 
-# Models are supplied from the immutable Hugging Face revision pinned in
-# Dockerfile.runpod.model, never from a developer's local checkout.
+# Models are supplied from the immutable Hugging Face revision pinned in the
+# Runpod Dockerfiles, never from a developer's local checkout.
 models/**
 
 # Logs
@@ -60,7 +60,7 @@ wandb/
 Thumbs.db
 
 # Docker
-Dockerfile
+Dockerfile*
 docker-compose.yml
 .dockerignore
 triton_model_repo/
