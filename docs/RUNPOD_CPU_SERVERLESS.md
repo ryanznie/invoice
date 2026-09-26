@@ -174,7 +174,13 @@ mkdir -p "$release_dir/onnx"
 cp models/artifacts/layoutlmv3_invoice_ner.onnx "$release_dir/onnx/"
 cp models/artifacts/model_metadata.json "$release_dir/onnx/"
 cp models/artifacts/model_provenance.json "$release_dir/onnx/"
+cp models/artifacts/preprocessor_config.json "$release_dir/"
 cp models/artifacts/processor_config.json "$release_dir/"
+cp models/artifacts/special_tokens_map.json "$release_dir/"
+cp models/artifacts/tokenizer.json "$release_dir/"
+cp models/artifacts/tokenizer_config.json "$release_dir/"
+cp models/artifacts/vocab.json "$release_dir/"
+cp models/artifacts/merges.txt "$release_dir/"
 cp models/layoutlmv3-lora-invoice-number/README.md "$release_dir/README.md"
 
 hf upload ryanznie/layoutlmv3-lora-invoice-number "$release_dir" . \
