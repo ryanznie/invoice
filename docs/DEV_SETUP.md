@@ -298,17 +298,21 @@ pre-commit autoupdate
 
 ## 📦 Building and Deployment
 
-### Docker Build
+### Local Docker Build
+
+The local FastAPI/Gradio image uses `Dockerfile.local`. The production Runpod
+worker and model bundle use their explicitly named Dockerfiles documented in
+[`RUNPOD_CPU_SERVERLESS.md`](RUNPOD_CPU_SERVERLESS.md).
 
 ```bash
 # Build image
-docker build -t invoice-ner:latest .
+docker build --file Dockerfile.local -t invoice-ner:latest .
 
 # Build with specific tag
-docker build -t invoice-ner:v1.0.0 .
+docker build --file Dockerfile.local -t invoice-ner:v1.0.0 .
 
 # Build with no cache
-docker build --no-cache -t invoice-ner:latest .
+docker build --no-cache --file Dockerfile.local -t invoice-ner:latest .
 ```
 
 ### Running with Docker Compose
