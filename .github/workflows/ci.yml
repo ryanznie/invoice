@@ -35,6 +35,19 @@ jobs:
       run: |
         source .venv/bin/activate
         pytest --cov=app --cov=scripts --cov-report=term-missing --cov-report=json --cov-report=html -v
+
+    - name: Run API contract E2E
+      run: |
+        source .venv/bin/activate
+        python scripts/e2e_api_contract.py
+
+    - name: Upload API contract E2E artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: api-contract-e2e
+        path: docs/artifacts/api-contract-e2e.json
+        retention-days: 30
     
     - name: Coverage comment
       if: github.event_name == 'pull_request'

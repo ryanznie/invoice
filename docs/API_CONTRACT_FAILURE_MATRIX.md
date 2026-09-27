@@ -16,14 +16,14 @@ in `scripts/e2e_api_contract.py` and writes its result to
 | OCR limit | OCR is one byte over `MAX_OCR_BYTES` | `POST /predict` returns `413` before OCR parsing | Required |
 | Image parsing | Uploaded bytes are not an image | `POST /predict` returns `400` | Required |
 | OCR parsing | JSON is malformed, content is empty, or the extension is unsupported | `POST /predict` returns `400` with a stable public error | Required |
-| Processor bundle | The image contains a local processor bundle next to the ONNX model | Startup loads that local bundle without a Hugging Face network dependency | Covered by the production-image smoke run |
-| Processor fallback | The configured processor path is unusable | Startup attempts `BASE_MODEL`; startup fails if neither source is available | Covered by the startup log captured by the production-image smoke run |
+| Processor bundle | The image contains a local processor bundle next to the ONNX model | Startup loads that local bundle without a Hugging Face network dependency | Required in the offline production-container run |
+| Processor fallback | The configured processor path is unusable | Startup attempts `BASE_MODEL`; startup fails if neither source is available | Required in the offline production-container run |
 | Inference fallback disabled | Primary inference fails while OpenRouter is disabled | `POST /predict` returns the sanitized `500` response and makes no hosted request | Required |
 | Inference fallback enabled | Primary inference fails and OpenRouter succeeds | `POST /predict` returns the fallback invoice result | Required with a deterministic local double; no external request is made |
 | Inference fallback failure | Primary inference and OpenRouter both fail | `POST /predict` returns the sanitized `500` response | Required with a deterministic local double; no external request is made |
 
-The processor cases intentionally use the production container smoke test
-because only that artifact contains the real ONNX model and complete processor
-bundle. The request-contract cases use the real ASGI routes and multipart
-parsing with deterministic local runtime doubles so they do not require model
-downloads, credentials, or billable inference.
+The processor cases intentionally use `scripts/e2e_processor_startup.py`
+against the production container because only that image contains the real
+ONNX model and complete processor bundle. The request-contract cases use the
+real ASGI routes and multipart parsing with deterministic local runtime doubles
+so they do not require model downloads, credentials, or billable inference.

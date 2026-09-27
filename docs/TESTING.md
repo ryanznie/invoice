@@ -1,6 +1,7 @@
 # Testing Guide
 
-Production-ready test suite with 107 tests covering input validation, error handling, and integration workflows.
+The project favors end-to-end checks for behavioral changes. API contract runs
+write deterministic JSON artifacts that can be inspected or compared in CI.
 
 ## Quick Start
 
@@ -9,21 +10,51 @@ Production-ready test suite with 107 tests covering input validation, error hand
 uv sync
 
 # Run all tests
-pytest
+uv run pytest
 
 # Run with coverage
-pytest --cov=app --cov=scripts --cov-report=html
+uv run pytest --cov=app --cov=scripts --cov-report=html
 
 # View coverage report
 open htmlcov/index.html
 ```
 
+## Backend API Contract E2E
+
+Run the request contract through the real FastAPI routes and multipart parser:
+
+```bash
+uv run python scripts/e2e_api_contract.py
+```
+
+This covers readiness, pre-readiness rejection, exact and oversized upload
+boundaries, malformed requests, sanitized errors, and the enabled/disabled
+OpenRouter fallback branches. It never calls OpenRouter. The deterministic
+result is written to
+[`artifacts/api-contract-e2e.json`](artifacts/api-contract-e2e.json).
+
+Run the real bundled processor and ONNX model startup branches offline in the
+pinned production image:
+
+```bash
+uv run python scripts/e2e_processor_startup.py
+```
+
+This checks both the bundled processor path and the fallback from an invalid
+`PROCESSOR_PATH` to the local `BASE_MODEL`. `HF_HUB_OFFLINE` and
+`TRANSFORMERS_OFFLINE` are enabled inside the container, so a passing run proves
+that startup does not depend on a Hugging Face download. The result is written
+to
+[`artifacts/processor-startup-e2e.json`](artifacts/processor-startup-e2e.json).
+
+The complete failure inventory and expected responses are in
+[`API_CONTRACT_FAILURE_MATRIX.md`](API_CONTRACT_FAILURE_MATRIX.md).
+
 ## Test Suite
 
-**107 tests** across 3 files:
-- `tests/test_app.py` - Main application functions (59 tests)
-- `tests/test_scripts.py` - Preprocessing utilities (35 tests)
-- `tests/test_api.py` - API endpoints (13 tests)
+The pytest suite covers existing application and preprocessing behavior. The
+two executable E2E checks above own the new deployment API and processor-startup
+contracts.
 
 ## What's Tested
 
