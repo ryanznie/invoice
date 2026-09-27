@@ -24,7 +24,7 @@ open htmlcov/index.html
 Run the request contract through the real FastAPI routes and multipart parser:
 
 ```bash
-uv run python scripts/e2e_api_contract.py
+uv run pytest --no-cov tests/e2e/test_api_contract.py -q
 ```
 
 This covers readiness, pre-readiness rejection, exact and oversized upload
@@ -37,7 +37,8 @@ Run the real bundled processor and ONNX model startup branches offline in the
 pinned production image:
 
 ```bash
-uv run python scripts/e2e_processor_startup.py
+RUN_PROCESSOR_CONTAINER_E2E=1 \
+  uv run pytest --no-cov tests/e2e/test_processor_startup.py -q
 ```
 
 This checks both the bundled processor path and the fallback from an invalid

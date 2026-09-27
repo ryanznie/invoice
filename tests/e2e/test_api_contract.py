@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ARTIFACT = REPO_ROOT / "docs" / "artifacts" / "api-contract-e2e.json"
 
 
@@ -95,8 +95,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> int:
-    args = parse_args()
+def run_contract(output: Path) -> int:
     if str(REPO_ROOT) not in sys.path:
         sys.path.insert(0, str(REPO_ROOT))
 
@@ -301,13 +300,23 @@ def main() -> int:
             "max_ocr_bytes": MAX_OCR_BYTES,
         },
         "cases": cases,
-        "repeat": "uv run python scripts/e2e_api_contract.py",
+        "repeat": "uv run pytest --no-cov tests/e2e/test_api_contract.py -q",
     }
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(artifact, indent=2) + "\n", encoding="utf-8")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(artifact, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(artifact, indent=2))
-    print(f"Artifact: {args.output}")
+    print(f"Artifact: {output}")
     return 0 if passed else 1
+
+
+def test_api_contract_e2e() -> None:
+    """Run the API contract through the real ASGI and multipart boundaries."""
+    assert run_contract(DEFAULT_ARTIFACT) == 0
+
+
+def main() -> int:
+    args = parse_args()
+    return run_contract(args.output)
 
 
 if __name__ == "__main__":

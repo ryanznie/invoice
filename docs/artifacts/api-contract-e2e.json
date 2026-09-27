@@ -194,5 +194,5 @@
       "fallback_calls": 1
     }
   ],
-  "repeat": "uv run python scripts/e2e_api_contract.py"
+  "repeat": "uv run pytest --no-cov tests/e2e/test_api_contract.py -q"
 }

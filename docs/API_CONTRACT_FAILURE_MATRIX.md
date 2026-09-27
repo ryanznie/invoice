@@ -2,7 +2,7 @@
 
 This matrix defines the externally observable failure modes that must be
 covered before changing the invoice API contract. The executable check lives
-in `scripts/e2e_api_contract.py` and writes its result to
+in `tests/e2e/test_api_contract.py` and writes its result to
 `docs/artifacts/api-contract-e2e.json`.
 
 | Area | Failure mode | Expected observable result | E2E coverage |
@@ -22,7 +22,7 @@ in `scripts/e2e_api_contract.py` and writes its result to
 | Inference fallback enabled | Primary inference fails and OpenRouter succeeds | `POST /predict` returns the fallback invoice result | Required with a deterministic local double; no external request is made |
 | Inference fallback failure | Primary inference and OpenRouter both fail | `POST /predict` returns the sanitized `500` response | Required with a deterministic local double; no external request is made |
 
-The processor cases intentionally use `scripts/e2e_processor_startup.py`
+The processor cases intentionally use `tests/e2e/test_processor_startup.py`
 against the production container because only that image contains the real
 ONNX model and complete processor bundle. The request-contract cases use the
 real ASGI routes and multipart parsing with deterministic local runtime doubles

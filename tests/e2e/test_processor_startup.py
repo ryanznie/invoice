@@ -5,12 +5,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 from pathlib import Path
 from typing import Any
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_IMAGE = "ghcr.io/ryanznie/invoice-ner-backend:v0.3.0-cpu.2"
 DEFAULT_ARTIFACT = REPO_ROOT / "docs" / "artifacts" / "processor-startup-e2e.json"
 RESULT_PREFIX = "PROCESSOR_E2E_RESULT="
@@ -89,13 +90,12 @@ def run_case(
     }
 
 
-def main() -> int:
-    args = parse_args()
+def run_contract(image: str, output: Path) -> int:
     cases = [
-        run_case("bundled_processor", args.image),
+        run_case("bundled_processor", image),
         run_case(
             "invalid_processor_path_falls_back_to_base_model",
-            args.image,
+            image,
             processor_path="/missing/processor",
         ),
     ]
@@ -104,16 +104,33 @@ def main() -> int:
         "schema_version": 1,
         "suite": "processor-startup-e2e",
         "result": "passed" if passed else "failed",
-        "container_image": args.image,
+        "container_image": image,
         "network_mode": "Hugging Face offline",
         "cases": cases,
-        "repeat": "uv run python scripts/e2e_processor_startup.py",
+        "repeat": (
+            "RUN_PROCESSOR_CONTAINER_E2E=1 uv run pytest --no-cov "
+            "tests/e2e/test_processor_startup.py -q"
+        ),
     }
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(artifact, indent=2) + "\n", encoding="utf-8")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(artifact, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(artifact, indent=2))
-    print(f"Artifact: {args.output}")
+    print(f"Artifact: {output}")
     return 0 if passed else 1
+
+
+def test_processor_startup_e2e() -> None:
+    """Load the real processor and ONNX runtime from the production image."""
+    import pytest
+
+    if os.getenv("RUN_PROCESSOR_CONTAINER_E2E") != "1":
+        pytest.skip("set RUN_PROCESSOR_CONTAINER_E2E=1 to run the Docker E2E")
+    assert run_contract(DEFAULT_IMAGE, DEFAULT_ARTIFACT) == 0
+
+
+def main() -> int:
+    args = parse_args()
+    return run_contract(args.image, args.output)
 
 
 if __name__ == "__main__":
