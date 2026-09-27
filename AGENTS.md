@@ -1,5 +1,15 @@
 # AGENTS.md
 
+## Testing Philosophy
+- NEVER write unit tests after writing the implementation. If unit tests are
+  appropriate, write them before the production code.
+- Highly prefer end-to-end tests as the sole testing mechanism. Use E2E tests
+  to verify that complex features work through their real integration points.
+  Every E2E test run must produce a verifiable, repeatable artifact such as a
+  report, captured output, screenshot, trace, or saved result.
+- If a system must be tested in isolation, FIRST document all the ways it could
+  fail, THEN write the test and implementation.
+
 ## Git
 - Create branches with semantic prefixes: `feature/`, `fix/`, `chore/`, `docs/`, `refactor/`, or `test/`.
 - Do not use `codex/` branch names in this repository.
