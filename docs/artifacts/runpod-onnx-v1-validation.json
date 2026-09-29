@@ -1,0 +1,56 @@
+{
+  "validated_at": "2026-09-25T16:19:43Z",
+  "artifacts": {
+    "huggingface_repository": "ryanznie/layoutlmv3-lora-invoice-number",
+    "huggingface_revision": "104788531d11cba27701c792098403c8f1eb1409",
+    "huggingface_tag": "onnx-v1",
+    "adapter_revision": "7dc28f5a3b14aa100ba432ee1b0a6cac6c7b2c5c",
+    "base_model_revision": "cfbbbff0762e6aab37086fdd4739ad14fe7d5db4",
+    "onnx_sha256": "fff762ae2eb7976f33137fdef64a9cc04c6cbbbe712a3fb0ae39f298fb8386dc",
+    "ghcr_model_mirror": "ghcr.io/ryanznie/layoutlmv3-lora-invoice-number:onnx-v1.0.1",
+    "ghcr_model_mirror_digest": "sha256:36d77af14e749233ff0a6f6ff445a6d790e86248bbd3bca21a9f0e74535bf0ba",
+    "worker_image": "ghcr.io/ryanznie/invoice-ner-backend:v0.3.0-cpu.2",
+    "worker_image_digest": "sha256:e5621052dc83c22def76ae3273b3b3fcfa882d9c1578680d2b68e968fd5bcb1e"
+  },
+  "pytorch_onnx_parity": {
+    "passed": true,
+    "prediction_agreement": 1.0,
+    "max_absolute_difference": 0.000007510185241699219,
+    "mean_absolute_difference": 0.00000121741925340757,
+    "output_shape": [1, 512, 3]
+  },
+  "local_container_e2e": {
+    "platform": "linux/amd64",
+    "fixture_image": "data/SROIE2019/test/img/X00016469670.jpg",
+    "fixture_ocr": "data/SROIE2019/test/box/X00016469670.txt",
+    "expected_invoice_number": "PEGIV-1030765",
+    "actual_invoice_number": "PEGIV-1030765",
+    "extraction_method": "model",
+    "model_device": "cpu",
+    "passed": true
+  },
+  "live_runpod_e2e": {
+    "endpoint_id": "5zp7mr2l2nhbxq",
+    "template_id": "lfb39n8iuf",
+    "job_id": "ff116c31-57dd-4f72-9120-e758656855ba-u2",
+    "status": "COMPLETED",
+    "delay_time_ms": 6726,
+    "execution_time_ms": 7519,
+    "expected_invoice_number": "PEGIV-1030765",
+    "actual_invoice_number": "PEGIV-1030765",
+    "extraction_method": "model",
+    "model_device": "cpu",
+    "passed": true
+  },
+  "production_config": {
+    "workers_min": 0,
+    "workers_max": 2,
+    "idle_timeout_seconds": 300,
+    "execution_timeout_seconds": 300
+  },
+  "repeat": {
+    "local_container": "docker run --rm --platform linux/amd64 --volume \"$PWD/data/SROIE2019/test:/fixtures:ro\" --entrypoint python ghcr.io/ryanznie/invoice-ner-backend:v0.3.0-cpu.2 scripts/smoke_test_runpod_backend.py --image /fixtures/img/X00016469670.jpg --ocr /fixtures/box/X00016469670.txt --expected PEGIV-1030765",
+    "live_runpod": "python3 scripts/smoke_test_runpod_backend.py --image data/SROIE2019/test/img/X00016469670.jpg --ocr data/SROIE2019/test/box/X00016469670.txt --payload-only | runpodctl serverless run 5zp7mr2l2nhbxq --input-file - --wait 15m",
+    "inspect_live_job": "runpodctl serverless status 5zp7mr2l2nhbxq ff116c31-57dd-4f72-9120-e758656855ba-u2"
+  }
+}

@@ -33,8 +33,19 @@ from .utils import parse_ocr_text_file, normalize_boxes
 # API
 from .api import app
 
-# Gradio UI
-from .gradio_ui import create_gradio_interface, gradio_predict, create_annotated_image
+# Gradio is a development UI and is intentionally absent from the production worker.
+try:
+    from .gradio_ui import create_gradio_interface, gradio_predict, create_annotated_image
+except ModuleNotFoundError as exc:
+    if exc.name != "gradio":
+        raise
+
+    def _gradio_unavailable(*args, **kwargs):
+        raise RuntimeError("Gradio is not installed in this runtime")
+
+    create_gradio_interface = _gradio_unavailable
+    gradio_predict = _gradio_unavailable
+    create_annotated_image = _gradio_unavailable
 
 __all__ = [
     # Inference

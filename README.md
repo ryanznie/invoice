@@ -20,7 +20,9 @@ Named Entity Recognition (NER) for invoice processing using LayoutLMv3 with LoRA
 invoice-ner/
 ├── app.py                      # Main FastAPI application
 ├── docker-compose.yml          # Docker Compose configuration
-├── Dockerfile                  # Docker image definition
+├── Dockerfile.local            # Local FastAPI/Gradio image
+├── Dockerfile.runpod.cpu       # Production Runpod CPU worker image
+├── Dockerfile.runpod.model     # Optional model-only OCI image
 ├── pyproject.toml              # Python project configuration & dependencies
 ├── setup.sh                    # Development environment setup script
 ├── .env.example                # Environment variables template
@@ -189,6 +191,9 @@ curl -X POST http://localhost:7860/predict \
 ```
 
 For detailed API documentation with code examples in Python, JavaScript, and more, see **[docs/API_USAGE.md](docs/API_USAGE.md)**.
+
+To test only the Runpod backend—without Vercel—see
+**[Backend-only testing](docs/RUNPOD_CPU_SERVERLESS.md#backend-only-testing)**.
 
 ## 🔧 Configuration
 

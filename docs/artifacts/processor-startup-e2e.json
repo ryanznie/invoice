@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "suite": "processor-startup-e2e",
+  "result": "passed",
+  "container_image": "ghcr.io/ryanznie/invoice-ner-backend:v0.3.0-cpu.2",
+  "network_mode": "Hugging Face offline",
+  "cases": [
+    {
+      "name": "bundled_processor",
+      "passed": true,
+      "exit_code": 0,
+      "details": {
+        "backend": "OnnxBackend",
+        "base_model": "/app/models/artifacts",
+        "configured_processor_path": null,
+        "processor": "LayoutLMv3Processor",
+        "tokenizer_source": "/app/models/artifacts"
+      },
+      "startup_log": [
+        "\u2705 Processor loaded from /app/models/artifacts",
+        "\ud83d\udc49 Initializing Inference Backend: ONNX",
+        "\ud83d\ude80 Loading ONNX model from /app/models/artifacts/layoutlmv3_invoice_ner.onnx...",
+        "\ud83d\udcf1 Using device: cpu (Providers: ['CPUExecutionProvider'])",
+        "\ud83d\udc49 Attempting to load with providers: ['CPUExecutionProvider']",
+        "\u2699\ufe0f Final Config: Model=/app/models/artifacts/layoutlmv3_invoice_ner.onnx, Device=cpu, Providers=['CPUExecutionProvider']",
+        "\u2705 ONNX Model loaded successfully!"
+      ],
+      "stderr": [
+        "None of PyTorch, TensorFlow >= 2.0, or Flax have been found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.",
+        "None of PyTorch, TensorFlow >= 2.0, or Flax have been found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.",
+        "OpenRouter fallback is disabled. Set ENABLE_OPENROUTER_FALLBACK=true to opt in."
+      ]
+    },
+    {
+      "name": "invalid_processor_path_falls_back_to_base_model",
+      "passed": true,
+      "exit_code": 0,
+      "details": {
+        "backend": "OnnxBackend",
+        "base_model": "/app/models/artifacts",
+        "configured_processor_path": "/missing/processor",
+        "processor": "LayoutLMv3Processor",
+        "tokenizer_source": "/app/models/artifacts"
+      },
+      "startup_log": [
+        "\u26a0\ufe0f Could not load processor from /missing/processor: Can't load image processor for '/missing/processor'. If you were trying to load it from 'https://huggingface.co/models', make sure you don't have a local directory with the same name. Otherwise, make sure '/missing/processor' is the correct path to a directory containing a preprocessor_config.json file",
+        "   Falling back to base model: /app/models/artifacts",
+        "\ud83d\udc49 Initializing Inference Backend: ONNX",
+        "\ud83d\ude80 Loading ONNX model from /app/models/artifacts/layoutlmv3_invoice_ner.onnx...",
+        "\ud83d\udcf1 Using device: cpu (Providers: ['CPUExecutionProvider'])",
+        "\ud83d\udc49 Attempting to load with providers: ['CPUExecutionProvider']",
+        "\u2699\ufe0f Final Config: Model=/app/models/artifacts/layoutlmv3_invoice_ner.onnx, Device=cpu, Providers=['CPUExecutionProvider']",
+        "\u2705 ONNX Model loaded successfully!"
+      ],
+      "stderr": [
+        "None of PyTorch, TensorFlow >= 2.0, or Flax have been found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.",
+        "None of PyTorch, TensorFlow >= 2.0, or Flax have been found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.",
+        "OpenRouter fallback is disabled. Set ENABLE_OPENROUTER_FALLBACK=true to opt in."
+      ]
+    }
+  ],
+  "repeat": "RUN_PROCESSOR_CONTAINER_E2E=1 uv run pytest --no-cov tests/e2e/test_processor_startup.py -q"
+}
