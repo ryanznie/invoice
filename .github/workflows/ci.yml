@@ -38,6 +38,7 @@ jobs:
 
     - name: Run API contract E2E
       run: |
+        rm -f docs/artifacts/api-contract-e2e.json
         source .venv/bin/activate
         pytest --no-cov tests/e2e/test_api_contract.py -v
 
@@ -47,6 +48,7 @@ jobs:
       with:
         name: api-contract-e2e
         path: docs/artifacts/api-contract-e2e.json
+        if-no-files-found: error
         retention-days: 30
     
     - name: Coverage comment

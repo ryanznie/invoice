@@ -49,7 +49,11 @@ def run_case(
     *,
     processor_path: str | None = None,
     base_model: str = "/app/models/artifacts",
+    expected_tokenizer_source: str | None = None,
 ) -> dict[str, Any]:
+    if expected_tokenizer_source is None:
+        expected_tokenizer_source = base_model
+
     command = [
         "docker",
         "run",
@@ -76,11 +80,20 @@ def run_case(
         None,
     )
     details = json.loads(marker) if marker is not None else None
+    tokenizer_source_matches = (
+        details is not None
+        and details.get("tokenizer_source") == expected_tokenizer_source
+    )
     return {
         "name": name,
-        "passed": completed.returncode == 0 and details is not None,
+        "passed": (
+            completed.returncode == 0
+            and details is not None
+            and tokenizer_source_matches
+        ),
         "exit_code": completed.returncode,
         "details": details,
+        "expected_tokenizer_source": expected_tokenizer_source,
         "startup_log": [
             line
             for line in completed.stdout.splitlines()
