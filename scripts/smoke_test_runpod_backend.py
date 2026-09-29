@@ -85,7 +85,7 @@ def main() -> int:
     if str(REPO_ROOT) not in sys.path:
         sys.path.insert(0, str(REPO_ROOT))
 
-    from runpod_handler import handler
+    from src.runpod_handler import handler
     from src import inference
 
     inference.load_model()

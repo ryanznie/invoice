@@ -13,7 +13,7 @@ uv sync
 uv run pytest
 
 # Run with coverage
-uv run pytest --cov=app --cov=scripts --cov-report=html
+uv run pytest --cov=src --cov=scripts --cov-report=html
 
 # View coverage report
 open htmlcov/index.html

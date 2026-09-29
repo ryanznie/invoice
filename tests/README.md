@@ -50,7 +50,7 @@ pytest tests/test_app.py::TestNormalizeBoxes::test_normalize_boxes_valid
 
 ### Run with Coverage Report
 ```bash
-pytest --cov=app --cov=scripts --cov-report=html
+pytest --cov=src --cov=scripts --cov-report=html
 ```
 
 Then open `htmlcov/index.html` in your browser.
@@ -188,7 +188,7 @@ These tests are designed to run in CI/CD pipelines:
 # Example GitHub Actions workflow
 - name: Run tests
   run: |
-    pytest --cov=app --cov=scripts --cov-report=xml
+    pytest --cov=src --cov=scripts --cov-report=xml
     
 - name: Upload coverage
   uses: codecov/codecov-action@v3

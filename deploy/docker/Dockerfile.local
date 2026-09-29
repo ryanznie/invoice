@@ -1,5 +1,5 @@
 # Local web/API image. Production Runpod serverless builds use
-# Dockerfile.runpod.cpu instead.
+# deploy/docker/Dockerfile.runpod.cpu instead.
 FROM python:3.11.13-slim
 
 # Set working directory
@@ -57,4 +57,4 @@ ENV PYTHONUNBUFFERED=1
 ENV DEVICE=cpu
 
 # Run the application
-CMD ["python", "app.py", "--port", "7860"]
+CMD ["python", "-m", "src.demo", "--port", "7860"]

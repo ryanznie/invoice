@@ -35,12 +35,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 RUN groupadd --system app && useradd --system --gid app --create-home app
 
-COPY requirements.runpod-cpu.txt ./
+COPY deploy/runpod/requirements.txt ./requirements.runpod-cpu.txt
 RUN pip install --no-cache-dir --requirement requirements.runpod-cpu.txt
 
 COPY src ./src
 COPY scripts ./scripts
-COPY runpod_handler.py ./
 COPY --from=model_bundle /models/artifacts/ ./models/artifacts/
 
 RUN echo "${MODEL_SHA256}  /app/models/artifacts/layoutlmv3_invoice_ner.onnx" \
@@ -48,4 +47,4 @@ RUN echo "${MODEL_SHA256}  /app/models/artifacts/layoutlmv3_invoice_ner.onnx" \
 
 USER app
 
-CMD ["python", "-u", "runpod_handler.py"]
+CMD ["python", "-u", "-m", "src.runpod_handler"]

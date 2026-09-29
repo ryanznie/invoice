@@ -34,7 +34,7 @@ jobs:
     - name: Run tests with pytest
       run: |
         source .venv/bin/activate
-        pytest --ignore=tests/e2e --cov=app --cov=scripts --cov-report=term-missing --cov-report=json --cov-report=html -v
+        pytest --ignore=tests/e2e --cov=src --cov=scripts --cov-report=term-missing --cov-report=json --cov-report=html -v
 
     - name: Run API contract E2E
       run: |
@@ -93,4 +93,4 @@ jobs:
     - name: Check code formatting with ruff
       run: |
         source .venv/bin/activate
-        ruff check app.py scripts/*.py tests/*.py tests/e2e/*.py
+        ruff check src/demo.py src/runpod_handler.py scripts/*.py tests/*.py tests/e2e/*.py

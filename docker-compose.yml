@@ -4,7 +4,7 @@ services:
   invoice-ner:
     build:
       context: .
-      dockerfile: Dockerfile.local
+      dockerfile: deploy/docker/Dockerfile.local
     container_name: invoice-ner-app
     ports:
       - "${PORT:-7860}:7860"
