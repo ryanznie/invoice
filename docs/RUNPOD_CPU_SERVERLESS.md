@@ -143,6 +143,19 @@ runpodctl serverless logs 5zp7mr2l2nhbxq --since 15m
 
 ## Build and validate
 
+Worker dependencies are declared in `deploy/runpod/pyproject.toml` and pinned,
+including transitive dependencies, in `deploy/runpod/uv.lock`. This standalone
+project keeps the CPU worker independent of the root development dependencies.
+The Docker build uses uv 0.9.24 and `uv sync --locked --no-dev` to install them
+into `/opt/venv`; a stale lockfile fails the build.
+
+After editing worker dependencies, regenerate and verify the lockfile:
+
+```bash
+uv lock --project deploy/runpod --python 3.11.13
+uv lock --project deploy/runpod --python 3.11.13 --check
+```
+
 Runpod workers are Linux AMD64 even when the image is built from Apple Silicon:
 
 ```bash

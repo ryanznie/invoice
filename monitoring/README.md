@@ -77,13 +77,13 @@ Open:
 Interactive UI:
 
 ```bash
-uv run locust -f benchmarks/locustfile.py --host=http://localhost:7860
+uv run locust -f tests/load/locustfile.py --host=http://localhost:7860
 ```
 
 Headless run with CSV output:
 
 ```bash
-uv run locust -f benchmarks/locustfile.py \
+uv run locust -f tests/load/locustfile.py \
   --host=http://localhost:7860 \
   --headless \
   --users=10 \

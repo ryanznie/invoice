@@ -144,7 +144,7 @@ All commands assume the stack is already running.
 ### One-Hour Real-Data Baseline
 
 ```bash
-uv run locust -f benchmarks/locustfile.py \
+uv run locust -f tests/load/locustfile.py \
   --host=http://localhost:7860 \
   --headless \
   --users=10 \
@@ -156,7 +156,7 @@ uv run locust -f benchmarks/locustfile.py \
 ### Spike Test
 
 ```bash
-uv run locust -f benchmarks/locustfile.py \
+uv run locust -f tests/load/locustfile.py \
   --host=http://localhost:7860 \
   --headless \
   --users=50 \
@@ -168,7 +168,7 @@ uv run locust -f benchmarks/locustfile.py \
 ### Soak Test
 
 ```bash
-uv run locust -f benchmarks/locustfile.py \
+uv run locust -f tests/load/locustfile.py \
   --host=http://localhost:7860 \
   --headless \
   --users=10 \

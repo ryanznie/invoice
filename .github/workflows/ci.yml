@@ -25,6 +25,9 @@ jobs:
         curl -LsSf https://astral.sh/uv/install.sh | sh
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
     
+    - name: Verify Runpod dependency lockfile
+      run: uv lock --project deploy/runpod --python 3.11 --check
+
     - name: Install dependencies
       run: |
         uv venv

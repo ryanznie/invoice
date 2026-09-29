@@ -19,6 +19,8 @@ ADD --chmod=0444 https://huggingface.co/ryanznie/layoutlmv3-lora-invoice-number/
 
 FROM python:3.11.13-slim
 
+COPY --from=ghcr.io/astral-sh/uv:0.9.24 /uv /uvx /bin/
+
 WORKDIR /app
 
 ARG MODEL_SHA256=fff762ae2eb7976f33137fdef64a9cc04c6cbbbe712a3fb0ae39f298fb8386dc
@@ -35,8 +37,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 RUN groupadd --system app && useradd --system --gid app --create-home app
 
-COPY deploy/runpod/requirements.txt ./requirements.runpod-cpu.txt
-RUN pip install --no-cache-dir --requirement requirements.runpod-cpu.txt
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
+    PATH="/opt/venv/bin:$PATH"
+
+COPY deploy/runpod/pyproject.toml deploy/runpod/uv.lock ./runpod-deps/
+RUN uv sync --project /app/runpod-deps --locked --no-dev --no-cache \
+    --python /usr/local/bin/python --no-python-downloads
 
 COPY src ./src
 COPY scripts ./scripts

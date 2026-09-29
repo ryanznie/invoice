@@ -25,7 +25,7 @@ invoice-ner/
 │
 ├── deploy/                     # Container builds and deployment dependencies
 │   ├── docker/                 # Local, Runpod CPU, and model Dockerfiles
-│   └── runpod/requirements.txt # Runpod CPU worker dependencies
+│   └── runpod/                # Worker pyproject.toml and uv.lock
 │
 ├── data/                       # Dataset and labeling tools
 │   ├── app.py                  # Streamlit labeling application
@@ -56,7 +56,6 @@ invoice-ner/
 ├── benchmarks/                 # Benchmarking suite
 │   ├── models/                 # Model wrappers (OpenRouter, ONNX, etc.)
 │   ├── benchmark_results/      # Benchmark run results
-│   ├── locustfile.py           # HTTP load testing
 │   ├── benchmark.py            # Main benchmark script
 │   └── README.md               # Benchmarking documentation
 │
@@ -85,6 +84,7 @@ invoice-ner/
 │   └── TESTING.md               # Testing guide and validation
 │
 ├── tests/                      # Test suite
+│   ├── load/locustfile.py      # HTTP load testing
 │   ├── conftest.py             # Shared test fixtures
 │   ├── test_app.py             # Application tests
 │   ├── test_scripts.py         # Script tests
@@ -96,7 +96,7 @@ invoice-ner/
 ```
 
 Run commands from the repository root: `python -m src.demo`,
-`bash scripts/setup.sh`, and `uv run locust -f benchmarks/locustfile.py`.
+`bash scripts/setup.sh`, and `uv run locust -f tests/load/locustfile.py`.
 Docker builds use the repository root as their context and an explicit
 `--file deploy/docker/Dockerfile.local` (or the corresponding Runpod Dockerfile).
 Compose and tool configuration stay at the root for automatic discovery.
