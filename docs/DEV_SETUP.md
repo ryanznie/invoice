@@ -27,6 +27,8 @@ Download SROIE2019 and place its train/test image and OCR files under data/SROIE
 
 The app reads images from SROIE2019/<split>/img and OCR text from SROIE2019/<split>/box. It writes labels.json, test_labels.json, and ambiguous_edits.log in the current directory.
 
+See the [dataset and labeling notes (Notion)](https://www.notion.so/Dataset-Documentation-Notes-1609faffd568479dbaf1c072b23c472d) for labeling heuristics and annotation context.
+
 ## Development checks
 
     uv run pytest

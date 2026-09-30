@@ -26,6 +26,7 @@ See [Testing](docs/TESTING.md) for contract and container checks.
 
 - [API usage](docs/API_USAGE.md)
 - [Developer setup and data labeling](docs/DEV_SETUP.md)
+- [Dataset and labeling notes (Notion)](https://www.notion.so/Dataset-Documentation-Notes-1609faffd568479dbaf1c072b23c472d)
 - [Runpod deployment](docs/RUNPOD_CPU_SERVERLESS.md)
 - [Monitoring](monitoring/README.md)
 - [Benchmarks](benchmarks/README.md)

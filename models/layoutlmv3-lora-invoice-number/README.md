@@ -139,7 +139,7 @@ commit SHA.
 
 ### Dataset
 [SROIE 2019 w/ invoices Dataset](https://www.kaggle.com/datasets/ryanznie/sroie-datasetv2-with-labels)
-[Dataset Documentations](https://www.notion.so/Dataset-Documentation-Notes-1609faffd568479dbaf1c072b23c472d)
+[Dataset and labeling notes (Notion)](https://www.notion.so/Dataset-Documentation-Notes-1609faffd568479dbaf1c072b23c472d)
 
 ### Training Configuration
 - **Hardware:** Apple MacBook M2 (8-core CPU, 16GB RAM)

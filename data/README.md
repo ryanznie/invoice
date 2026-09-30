@@ -18,4 +18,4 @@ The preprocessing script converts OCR files and labels into model-ready JSON:
 
     uv run python scripts/preprocess.py --help
 
-See [Developer Setup](../docs/DEV_SETUP.md) for environment setup and [Dataset notes](https://www.notion.so/Dataset-Documentation-Notes-1609faffd568479dbaf1c072b23c472d) for labeling context.
+See [Developer Setup](../docs/DEV_SETUP.md) for environment setup and [dataset and labeling notes (Notion)](https://www.notion.so/Dataset-Documentation-Notes-1609faffd568479dbaf1c072b23c472d) for labeling context and heuristics.
