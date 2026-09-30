@@ -31,4 +31,16 @@ See [Testing](docs/TESTING.md) for contract and container checks.
 - [Benchmarks](benchmarks/README.md)
 - [Model card](models/layoutlmv3-lora-invoice-number/README.md)
 
-Core code is in src/, operational scripts in scripts/, and tests in tests/.
+## Repository structure
+
+```text
+src/                 API, upload UI, and inference
+scripts/             Training, preprocessing, and model export
+deploy/              Dockerfiles and Runpod worker setup
+tests/               Pytest, end-to-end, and load tests
+data/  models/        Datasets and model files
+docs/  monitoring/    Guides and production monitoring
+benchmarks/           Model evaluation
+notebooks/            Exploration and analysis
+triton_model_repo/    Triton model configuration
+```
