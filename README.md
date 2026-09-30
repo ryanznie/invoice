@@ -1,6 +1,6 @@
 # Invoice NER
 
-Extract invoice numbers from invoice images using OCR text and bounding boxes. The app exposes a FastAPI API and a Gradio upload UI; extraction uses heuristics first, then a local LayoutLMv3 ONNX model. OpenRouter fallback is optional and disabled by default.
+Extract invoice numbers from invoice images using OCR text and bounding boxes. The app exposes a FastAPI API and a Gradio upload UI; extraction uses heuristics first, then a local LayoutLMv3 ONNX model with OpenRouter as the hosted fallback. Set `OPENROUTER_API_KEY` for cases where local inference raises an error.
 
 ## Run locally
 

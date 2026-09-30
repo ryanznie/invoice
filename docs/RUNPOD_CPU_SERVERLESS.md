@@ -1,6 +1,6 @@
 # Runpod CPU Serverless
 
-The queue-based CPU worker accepts a base64-encoded invoice image and TXT or JSON OCR file. The same handler runs locally in tests and in production. OpenRouter is disabled by default.
+The queue-based CPU worker accepts a base64-encoded invoice image and TXT or JSON OCR file. The same handler runs locally in tests and in production. Set `OPENROUTER_API_KEY` on the worker to use hosted fallback when local inference fails.
 
 ## Last validated release
 

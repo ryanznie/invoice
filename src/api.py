@@ -23,6 +23,7 @@ from pydantic import BaseModel
 
 from . import inference
 from .heuristics import extract_invoice_heuristics
+from .openrouter import OpenRouterConfigurationError
 from .postprocessing import postprocess_invoice_number
 from .utils import normalize_boxes, parse_ocr_text_file
 from .validation import validate_model_extraction
@@ -355,6 +356,11 @@ def predict(
         INFERENCE_REQUESTS.labels(method=extraction_method, status="error").inc()
         INFERENCE_LATENCY.observe(time.perf_counter() - start_time)
         raise
+    except OpenRouterConfigurationError as e:
+        INFERENCE_ERRORS.labels(method=extraction_method).inc()
+        INFERENCE_REQUESTS.labels(method=extraction_method, status="error").inc()
+        INFERENCE_LATENCY.observe(time.perf_counter() - start_time)
+        raise HTTPException(status_code=503, detail=str(e)) from e
     except Exception as e:
         INFERENCE_ERRORS.labels(method=extraction_method).inc()
         INFERENCE_REQUESTS.labels(method=extraction_method, status="error").inc()
