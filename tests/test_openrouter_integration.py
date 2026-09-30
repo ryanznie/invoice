@@ -175,7 +175,28 @@ def test_fallback_openrouter_requires_api_key(monkeypatch):
         client.predict(words=["invoice", "number", "INV-123"])
 
 
-def test_inference_always_configures_openrouter_fallback(monkeypatch):
+@pytest.mark.parametrize(
+    "setting",
+    [
+        "OPENROUTER_MAX_TOKENS",
+        "OPENROUTER_MAX_RETRIES",
+        "OPENROUTER_RETRY_BACKOFF_SECONDS",
+    ],
+)
+def test_invalid_openrouter_settings_are_deferred_until_fallback_load(
+    monkeypatch, setting
+):
+    from src.openrouter import OpenRouterConfigurationError
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv(setting, "invalid")
+    client = OpenRouterClient()
+
+    with pytest.raises(OpenRouterConfigurationError, match=setting):
+        client.load()
+
+
+def test_inference_always_configures_openrouter_fallback(monkeypatch, caplog):
     from src import inference
 
     class BackendDouble:
@@ -199,7 +220,11 @@ def test_inference_always_configures_openrouter_fallback(monkeypatch):
     monkeypatch.setattr(inference, "model", None)
     monkeypatch.setattr(inference, "openrouter_client", None)
     monkeypatch.setenv("ENABLE_OPENROUTER_FALLBACK", "false")
+    monkeypatch.setenv("OPENROUTER_MAX_TOKENS", "invalid")
+    monkeypatch.setenv("OPENROUTER_MAX_RETRIES", "invalid")
+    monkeypatch.setenv("OPENROUTER_RETRY_BACKOFF_SECONDS", "invalid")
 
     inference.load_model()
 
     assert isinstance(inference.openrouter_client, OpenRouterClient)
+    assert "ENABLE_OPENROUTER_FALLBACK is deprecated and ignored" in caplog.text

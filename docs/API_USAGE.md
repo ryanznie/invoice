@@ -48,10 +48,12 @@ Default upload limits are 10 MiB for images and 2 MiB for OCR files; configure t
 | 413 | Upload exceeds its configured size limit |
 | 422 | Required multipart fields are missing |
 | 500 | Inference failed |
-| 503 | Model is not ready, or hosted fallback needs `OPENROUTER_API_KEY` |
+| 503 | Model is not ready, or hosted fallback configuration is missing or invalid |
 
 Internal error details are hidden by default. Do not enable EXPOSE_INTERNAL_ERRORS in production.
 
 ## Hosted fallback
 
-When local model inference raises an error, the app sends the image and OCR words to the configured OpenRouter model. Set `OPENROUTER_API_KEY` in the service environment; without it, the request returns a clear `503` error. Review your data-handling requirements before deployment.
+When local model inference raises an error, the app sends the image and OCR words to the configured OpenRouter model. Set `OPENROUTER_API_KEY` only when hosted processing is approved; without it, the request returns a clear `503` error.
+
+**Migration:** `ENABLE_OPENROUTER_FALLBACK` is deprecated and ignored. The app logs a warning if it is still set. Deployments that must keep invoice data local should remove `OPENROUTER_API_KEY`; local processing continues, and a request that needs hosted fallback returns `503`.

@@ -10,6 +10,7 @@ import os
 import sys
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import numpy as np
 from fastapi.testclient import TestClient
@@ -106,6 +107,7 @@ def run_contract(output: Path) -> int:
     original_processor = inference.processor
     original_openrouter = inference.openrouter_client
     original_expose_errors = os.environ.get("EXPOSE_INTERNAL_ERRORS")
+    original_openrouter_max_tokens = os.environ.get("OPENROUTER_MAX_TOKENS")
     cases: list[dict[str, Any]] = []
 
     def check(
@@ -247,16 +249,43 @@ def run_contract(output: Path) -> int:
         missing_key_client = OpenRouterClient(api_key="placeholder")
         missing_key_client.api_key = None
         inference.openrouter_client = missing_key_client
+        with patch(
+            "httpx.HTTPTransport.handle_request",
+            autospec=True,
+            side_effect=AssertionError("unexpected hosted HTTP request"),
+        ) as hosted_transport:
+            response = client.post("/predict", files=_files(image, model_ocr))
         check(
             "openrouter_missing_api_key",
-            client.post("/predict", files=_files(image, model_ocr)),
+            response,
             503,
             expected_detail=(
                 "OPENROUTER_API_KEY is required when OpenRouter fallback is needed. "
                 "Add it to the service environment."
             ),
-            condition=missing_key_client.client is None,
-            metadata={"hosted_requests": 0},
+            condition=(
+                missing_key_client.client is None and hosted_transport.call_count == 0
+            ),
+            metadata={"hosted_requests": hosted_transport.call_count},
+        )
+
+        os.environ["OPENROUTER_MAX_TOKENS"] = "invalid"
+        inference.openrouter_client = OpenRouterClient(api_key="placeholder")
+        with patch(
+            "httpx.HTTPTransport.handle_request",
+            autospec=True,
+            side_effect=AssertionError("unexpected hosted HTTP request"),
+        ) as hosted_transport:
+            response = client.post("/predict", files=_files(image, model_ocr))
+        check(
+            "openrouter_invalid_settings",
+            response,
+            503,
+            expected_detail=(
+                "OPENROUTER_MAX_TOKENS must be an integer to use OpenRouter fallback."
+            ),
+            condition=hosted_transport.call_count == 0,
+            metadata={"hosted_requests": hosted_transport.call_count},
         )
 
         successful_fallback = _OpenRouterDouble(
@@ -297,6 +326,10 @@ def run_contract(output: Path) -> int:
             os.environ.pop("EXPOSE_INTERNAL_ERRORS", None)
         else:
             os.environ["EXPOSE_INTERNAL_ERRORS"] = original_expose_errors
+        if original_openrouter_max_tokens is None:
+            os.environ.pop("OPENROUTER_MAX_TOKENS", None)
+        else:
+            os.environ["OPENROUTER_MAX_TOKENS"] = original_openrouter_max_tokens
 
     passed = all(case["passed"] for case in cases)
     artifact = {

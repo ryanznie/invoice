@@ -159,6 +159,16 @@
       "hosted_requests": 0
     },
     {
+      "name": "openrouter_invalid_settings",
+      "passed": true,
+      "expected_status": 503,
+      "actual_status": 503,
+      "response": {
+        "detail": "OPENROUTER_MAX_TOKENS must be an integer to use OpenRouter fallback."
+      },
+      "hosted_requests": 0
+    },
+    {
       "name": "openrouter_fallback_success",
       "passed": true,
       "expected_status": 200,

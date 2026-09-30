@@ -266,6 +266,13 @@ def load_model():
     global openrouter_client
     from .openrouter import OpenRouterClient
 
+    if "ENABLE_OPENROUTER_FALLBACK" in os.environ:
+        logger.warning(
+            "ENABLE_OPENROUTER_FALLBACK is deprecated and ignored. OpenRouter "
+            "receives invoice data on local inference errors when "
+            "OPENROUTER_API_KEY is set."
+        )
+
     openrouter_client = OpenRouterClient()
 
 

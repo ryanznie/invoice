@@ -32,7 +32,11 @@ INVOICE_NUMBER_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._/#:-]{0,63}$")
 FENCED_JSON_PATTERN = re.compile(r"^```(?:json)?\s*(.*?)\s*```$", re.DOTALL)
 
 
-class OpenRouterAPIKeyError(RuntimeError):
+class OpenRouterConfigurationError(RuntimeError):
+    """Raised when fallback configuration cannot support a hosted request."""
+
+
+class OpenRouterAPIKeyError(OpenRouterConfigurationError):
     """Raised when hosted fallback is needed but no API key is configured."""
 
 
@@ -129,13 +133,31 @@ class OpenRouterClient:
         self.base_url = base_url or os.getenv(
             "OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"
         )
-        self.max_tokens = int(os.getenv("OPENROUTER_MAX_TOKENS", "128"))
-        self.max_retries = int(os.getenv("OPENROUTER_MAX_RETRIES", "3"))
-        self.retry_backoff_seconds = float(
-            os.getenv("OPENROUTER_RETRY_BACKOFF_SECONDS", "2.0")
-        )
+        self.max_tokens = 128
+        self.max_retries = 3
+        self.retry_backoff_seconds = 2.0
         self.client = None
         self._initialized = False
+
+    def _load_settings(self) -> None:
+        settings = (
+            ("OPENROUTER_MAX_TOKENS", "max_tokens", int, "an integer"),
+            ("OPENROUTER_MAX_RETRIES", "max_retries", int, "an integer"),
+            (
+                "OPENROUTER_RETRY_BACKOFF_SECONDS",
+                "retry_backoff_seconds",
+                float,
+                "a number",
+            ),
+        )
+        for name, attribute, parser, expected in settings:
+            try:
+                value = parser(os.getenv(name, str(getattr(self, attribute))))
+            except (TypeError, ValueError) as exc:
+                raise OpenRouterConfigurationError(
+                    f"{name} must be {expected} to use OpenRouter fallback."
+                ) from exc
+            setattr(self, attribute, value)
 
     def load(self) -> None:
         """Lazy load the OpenRouter API client."""
@@ -147,6 +169,8 @@ class OpenRouterClient:
                 "OPENROUTER_API_KEY is required when OpenRouter fallback is needed. "
                 "Add it to the service environment."
             )
+
+        self._load_settings()
 
         try:
             from openai import OpenAI
