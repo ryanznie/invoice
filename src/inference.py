@@ -35,9 +35,6 @@ BASE_MODEL = os.getenv("BASE_MODEL", "microsoft/layoutlmv3-base")
 PROCESSOR_PATH = os.getenv("PROCESSOR_PATH")
 MAX_LENGTH = int(os.getenv("MAX_LENGTH", "512"))
 NUM_LABELS = int(os.getenv("NUM_LABELS", "3"))
-ENABLE_OPENROUTER_FALLBACK = os.getenv(
-    "ENABLE_OPENROUTER_FALLBACK", "false"
-).lower() in {"1", "true", "yes", "on"}
 
 # Device selection: environment variable > MPS > CPU
 # Note: ONNX Runtime providers need to be configured explicitly
@@ -265,21 +262,11 @@ def load_model():
         global model
         model = backend.session
 
-    # Initialize OpenRouter Client for fallback
+    # Configure hosted fallback. The API key is checked only if fallback runs.
     global openrouter_client
-    openrouter_client = None
-    if ENABLE_OPENROUTER_FALLBACK:
-        from .openrouter import OpenRouterClient
+    from .openrouter import OpenRouterClient
 
-        openrouter_client = OpenRouterClient()
-        if not os.getenv("OPENROUTER_API_KEY"):
-            logger.warning(
-                "OpenRouter fallback is enabled but OPENROUTER_API_KEY is not set."
-            )
-    else:
-        logger.warning(
-            "OpenRouter fallback is disabled. Set ENABLE_OPENROUTER_FALLBACK=true to opt in."
-        )
+    openrouter_client = OpenRouterClient()
 
 
 # ============================================================================

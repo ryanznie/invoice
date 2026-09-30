@@ -149,12 +149,12 @@
       }
     },
     {
-      "name": "primary_failure_without_openrouter",
+      "name": "openrouter_missing_api_key",
       "passed": true,
-      "expected_status": 500,
-      "actual_status": 500,
+      "expected_status": 503,
+      "actual_status": 503,
       "response": {
-        "detail": "Internal server error"
+        "detail": "OPENROUTER_API_KEY is required when OpenRouter fallback is needed. Add it to the service environment."
       },
       "hosted_requests": 0
     },

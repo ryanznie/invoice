@@ -1,8 +1,10 @@
 from types import SimpleNamespace
 
+import pytest
+
 from benchmarks.benchmark import get_model
 from benchmarks.models.openrouter_model import OpenRouterModel
-from src.openrouter import OpenRouterClient
+from src.openrouter import OpenRouterAPIKeyError, OpenRouterClient
 
 
 class FlakyCompletions:
@@ -163,3 +165,41 @@ def test_fallback_openrouter_retries_transient_failures():
     assert result["invoice_number"] == "INV-123"
     assert result["method"] == "qwen/qwen3-vl-8b-instruct"
     assert result["retry_count"] == 1
+
+
+def test_fallback_openrouter_requires_api_key(monkeypatch):
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    client = OpenRouterClient(api_key=None)
+
+    with pytest.raises(OpenRouterAPIKeyError, match="OPENROUTER_API_KEY is required"):
+        client.predict(words=["invoice", "number", "INV-123"])
+
+
+def test_inference_always_configures_openrouter_fallback(monkeypatch):
+    from src import inference
+
+    class BackendDouble:
+        def __init__(self):
+            self.session = object()
+
+        def load(self, model_path):
+            del model_path
+
+    monkeypatch.setattr(inference, "INFERENCE_BACKEND", "onnx")
+    monkeypatch.setattr(inference, "MODEL_PATH", "/missing/model.onnx")
+    monkeypatch.setattr(inference, "PROCESSOR_PATH", "test-processor")
+    monkeypatch.setattr(inference, "OnnxBackend", BackendDouble)
+    monkeypatch.setattr(
+        inference.LayoutLMv3Processor,
+        "from_pretrained",
+        lambda *args, **kwargs: object(),
+    )
+    monkeypatch.setattr(inference, "backend", None)
+    monkeypatch.setattr(inference, "processor", None)
+    monkeypatch.setattr(inference, "model", None)
+    monkeypatch.setattr(inference, "openrouter_client", None)
+    monkeypatch.setenv("ENABLE_OPENROUTER_FALLBACK", "false")
+
+    inference.load_model()
+
+    assert isinstance(inference.openrouter_client, OpenRouterClient)

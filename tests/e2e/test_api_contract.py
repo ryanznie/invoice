@@ -242,12 +242,20 @@ def run_contract(output: Path) -> int:
         model_ocr = _ocr_json(heuristic=False)
         inference.backend = _FailingBackend()
         inference.processor = _ProcessorDouble()
-        inference.openrouter_client = None
+        from src.openrouter import OpenRouterClient
+
+        missing_key_client = OpenRouterClient(api_key="placeholder")
+        missing_key_client.api_key = None
+        inference.openrouter_client = missing_key_client
         check(
-            "primary_failure_without_openrouter",
+            "openrouter_missing_api_key",
             client.post("/predict", files=_files(image, model_ocr)),
-            500,
-            expected_detail="Internal server error",
+            503,
+            expected_detail=(
+                "OPENROUTER_API_KEY is required when OpenRouter fallback is needed. "
+                "Add it to the service environment."
+            ),
+            condition=missing_key_client.client is None,
             metadata={"hosted_requests": 0},
         )
 

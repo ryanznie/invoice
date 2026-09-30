@@ -32,6 +32,10 @@ INVOICE_NUMBER_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._/#:-]{0,63}$")
 FENCED_JSON_PATTERN = re.compile(r"^```(?:json)?\s*(.*?)\s*```$", re.DOTALL)
 
 
+class OpenRouterAPIKeyError(RuntimeError):
+    """Raised when hosted fallback is needed but no API key is configured."""
+
+
 def _looks_like_serialized_json(value: str) -> bool:
     if not value or value[0] not in "{[":
         return False
@@ -139,10 +143,10 @@ class OpenRouterClient:
             return
 
         if not self.api_key:
-            logger.warning(
-                "OPENROUTER_API_KEY not set. OpenRouter fallback will not work."
+            raise OpenRouterAPIKeyError(
+                "OPENROUTER_API_KEY is required when OpenRouter fallback is needed. "
+                "Add it to the service environment."
             )
-            return
 
         try:
             from openai import OpenAI
@@ -163,6 +167,9 @@ class OpenRouterClient:
 
         Returns:
             Dict containing 'invoice_number', 'raw_response', and 'error'
+
+        Raises:
+            OpenRouterAPIKeyError: If fallback is needed but no API key is configured.
         """
         if not self._initialized:
             self.load()
