@@ -143,43 +143,6 @@ Current coverage areas:
 - ✅ API endpoints
 - ⚠️ Model inference (requires model loading)
 
-## Writing New Tests
-
-### Test Naming Convention
-- Test files: `test_*.py`
-- Test classes: `Test*`
-- Test functions: `test_*`
-
-### Example Test
-```python
-def test_function_name_scenario(fixture_name):
-    """Test description"""
-    # Arrange
-    input_data = ...
-    
-    # Act
-    result = function_under_test(input_data)
-    
-    # Assert
-    assert result == expected_value
-```
-
-### Testing Exceptions
-```python
-def test_function_raises_error():
-    """Test that function raises appropriate error"""
-    with pytest.raises(ValueError, match="error message"):
-        function_that_should_fail(invalid_input)
-```
-
-### Using Fixtures
-```python
-def test_with_fixture(sample_image, sample_words):
-    """Test using shared fixtures"""
-    result = process_image(sample_image, sample_words)
-    assert result is not None
-```
-
 ## Continuous Integration
 
 These tests are designed to run in CI/CD pipelines:
