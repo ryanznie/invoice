@@ -279,7 +279,7 @@ pytest
 pytest --cov=src --cov-report=html
 
 # Run specific test file
-pytest tests/test_model.py
+pytest tests/unit/test_robustness.py
 
 # Run with verbose output
 pytest -v

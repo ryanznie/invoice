@@ -54,8 +54,8 @@ invoice image and its bounding-box OCR data.
 
 ```bash
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run pytest -o addopts='' \
-  tests/test_runpod_handler.py \
-  tests/test_runpod_smoke_script.py
+  tests/runpod/test_runpod_handler.py \
+  tests/runpod/test_runpod_smoke_script.py
 ```
 
 This validates request decoding, file validation, and payload generation without

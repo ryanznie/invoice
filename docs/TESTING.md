@@ -53,9 +53,12 @@ The complete failure inventory and expected responses are in
 
 ## Test Suite
 
-The pytest suite covers existing application and preprocessing behavior. The
-two executable E2E checks above own the new deployment API and processor-startup
-contracts.
+Pytest discovers tests recursively under `tests/`. API tests live in
+`tests/api/`, application and preprocessing checks in `tests/unit/`, and worker
+tests in `tests/runpod/`. End-to-end checks are under `tests/e2e/`; the Locust
+load profile is under `tests/load/`. The fallback script in `tests/manual/` is
+run directly because it changes shared inference state. See
+[`tests/README.md`](../tests/README.md) for the folder map and commands.
 
 ## What's Tested
 
@@ -69,16 +72,16 @@ All functions have comprehensive validation:
 
 ```bash
 # By file
-pytest tests/test_app.py
+pytest tests/unit/test_app.py
 
 # By class
-pytest tests/test_app.py::TestPredictInvoice
-pytest tests/test_scripts.py::TestSplitInvoiceString
+pytest tests/unit/test_app.py::TestPredictInvoice
+pytest tests/unit/test_scripts.py::TestSplitInvoiceString
 ```
 
 ### By Test Function
 ```bash
-pytest tests/test_app.py::TestPredictInvoice::test_predict_invalid_box_geometry
+pytest tests/unit/test_app.py::TestPredictInvoice::test_predict_invalid_box_geometry
 ```
 
 ### By Pattern

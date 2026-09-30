@@ -96,4 +96,4 @@ jobs:
     - name: Check code formatting with ruff
       run: |
         source .venv/bin/activate
-        ruff check src/demo.py src/runpod_handler.py scripts/*.py tests/*.py tests/e2e/*.py
+        ruff check src/demo.py src/runpod_handler.py scripts/*.py tests/

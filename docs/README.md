@@ -22,7 +22,7 @@ API documentation and examples:
 ### 🧪 [TESTING.md](./TESTING.md)
 Testing guide and validation documentation:
 - Quick start for running tests
-- Test suite overview (107 tests)
+- Test folders for API, unit, Runpod, end-to-end, and load checks
 - Input validation
 - Coverage reporting
 - CI/CD integration

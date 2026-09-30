@@ -7,7 +7,7 @@ Named Entity Recognition (NER) for invoice processing using LayoutLMv3 with LoRA
 - 🤖 **Hybrid Extraction Pipeline** - Combines fast heuristic pattern matching with deep learning fallback (LayoutLMv3 & OpenRouter-hosted VLMs)
 - 🎯 **LayoutLMv3 with LoRA** - Efficient fine-tuning on multimodal document understanding
 - 🌐 **Dual Interface** - REST API for programmatic access + Gradio UI for interactive use
-- 🚀 **Production Ready** - Comprehensive test suite (107 tests), Docker support, health checks
+- 🚀 **Production Ready** - Organized API, unit, Runpod, and end-to-end test suites, Docker support, health checks
 - 📊 **Multi-Format Support** - Accepts TXT and JSON OCR data formats
 - ⚡ **ONNX Support** - Optimized inference with ONNX Runtime (FP32/FP16/INT8)
 - 📈 **Benchmarking** - Compare models (LayoutLMv3, OpenRouter VLMs, ONNX) with W&B integration
@@ -84,11 +84,13 @@ invoice-ner/
 │   └── TESTING.md               # Testing guide and validation
 │
 ├── tests/                      # Test suite
-│   ├── load/locustfile.py      # HTTP load testing
 │   ├── conftest.py             # Shared test fixtures
-│   ├── test_app.py             # Application tests
-│   ├── test_scripts.py         # Script tests
-│   ├── test_api.py             # API endpoint tests
+│   ├── api/                    # API and monitoring tests
+│   ├── unit/                   # Application, script, and model-client tests
+│   ├── runpod/                 # Serverless worker tests
+│   ├── e2e/                    # End-to-end contract and container tests
+│   ├── load/                   # Locust HTTP load profile
+│   ├── manual/                 # Manually run fallback checks
 │   └── README.md               # Testing documentation
 │
 ├── LICENSE                     # MIT License
@@ -108,7 +110,7 @@ Compose and tool configuration stay at the root for automatic discovery.
 - **`models/`** - Stores fine-tuned LoRA adapters and exported ONNX models for deployment
 - **`notebooks/`** - Jupyter notebooks for experimentation, analysis, and prototyping
 - **`scripts/`** - Utility scripts for data preprocessing, model export, and deployment preparation
-- **`tests/`** - Comprehensive test suite with 107 tests for production validation
+- **`tests/`** - Test folders for API, unit, Runpod, end-to-end, and load checks
 - **`docs/`** - Documentation for API usage, development setup, testing, and deployment
 
 ## 🚀 Quick Start

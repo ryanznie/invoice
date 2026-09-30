@@ -15,12 +15,22 @@ This test suite provides production-ready testing for:
 
 ```
 tests/
-├── __init__.py           # Package initialization
-├── conftest.py           # Shared fixtures and configuration
-├── test_app.py           # Tests for main application functions
-├── test_scripts.py       # Tests for preprocessing scripts
-├── test_api.py           # Tests for FastAPI endpoints
-└── README.md             # This file
+├── conftest.py                         # Shared fixtures
+├── api/
+│   ├── test_api.py                     # FastAPI and mounted UI endpoints
+│   └── test_monitoring.py              # Metrics and runtime config endpoints
+├── unit/
+│   ├── test_app.py                     # Application behavior
+│   ├── test_openrouter_integration.py  # OpenRouter parsing and retries
+│   ├── test_robustness.py              # Inference backend error handling
+│   └── test_scripts.py                 # Preprocessing utilities
+├── runpod/
+│   ├── test_runpod_handler.py          # Worker payload validation
+│   └── test_runpod_smoke_script.py     # Smoke-test input formatting
+├── e2e/                                # API contract and container startup
+├── load/locustfile.py                  # HTTP load profile
+├── manual/verify_fallback.py           # Manually run fallback check
+└── README.md                           # This file
 ```
 
 ## Running Tests
@@ -32,20 +42,21 @@ pytest
 
 ### Run Specific Test File
 ```bash
-pytest tests/test_app.py
-pytest tests/test_scripts.py
-pytest tests/test_api.py
+pytest tests/unit/test_app.py
+pytest tests/unit/test_scripts.py
+pytest tests/api/test_api.py
+pytest tests/runpod/test_runpod_handler.py
 ```
 
 ### Run Specific Test Class
 ```bash
-pytest tests/test_app.py::TestNormalizeBoxes
-pytest tests/test_app.py::TestPredictInvoice
+pytest tests/unit/test_app.py::TestNormalizeBoxes
+pytest tests/unit/test_app.py::TestPredictInvoice
 ```
 
 ### Run Specific Test Function
 ```bash
-pytest tests/test_app.py::TestNormalizeBoxes::test_normalize_boxes_valid
+pytest tests/unit/test_app.py::TestNormalizeBoxes::test_normalize_boxes_valid
 ```
 
 ### Run with Coverage Report
@@ -242,6 +253,15 @@ When adding new features:
 3. Maintain >80% code coverage
 4. Add validation tests for all inputs
 5. Test edge cases and error conditions
+
+## Manual fallback check
+
+Run the legacy fallback check directly when needed; it is kept separate from
+pytest discovery because it mutates inference globals without restoring them:
+
+```bash
+.venv/bin/python tests/manual/verify_fallback.py
+```
 
 ## Load tests
 
