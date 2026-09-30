@@ -2,7 +2,7 @@
 Locust load profile for the Invoice NER API.
 
 Run with:
-    locust -f locustfile.py --host=http://localhost:7860 --headless --users=10 --spawn-rate=2 --run-time=60s
+    locust -f tests/load/locustfile.py --host=http://localhost:7860 --headless --users=10 --spawn-rate=2 --run-time=60s
 
 By default this samples local labeled training invoices:
     data/train/qa_dataset.json

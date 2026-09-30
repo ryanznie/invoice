@@ -50,7 +50,7 @@ pytest tests/test_app.py::TestNormalizeBoxes::test_normalize_boxes_valid
 
 ### Run with Coverage Report
 ```bash
-pytest --cov=app --cov=scripts --cov-report=html
+pytest --cov=src --cov=scripts --cov-report=html
 ```
 
 Then open `htmlcov/index.html` in your browser.
@@ -188,7 +188,7 @@ These tests are designed to run in CI/CD pipelines:
 # Example GitHub Actions workflow
 - name: Run tests
   run: |
-    pytest --cov=app --cov=scripts --cov-report=xml
+    pytest --cov=src --cov=scripts --cov-report=xml
     
 - name: Upload coverage
   uses: codecov/codecov-action@v3
@@ -242,3 +242,16 @@ When adding new features:
 3. Maintain >80% code coverage
 4. Add validation tests for all inputs
 5. Test edge cases and error conditions
+
+## Load tests
+
+The HTTP load profile lives in `tests/load/locustfile.py`. Run from the repository
+root with the labeled invoice dataset available:
+
+```bash
+uv run locust -f tests/load/locustfile.py --host=http://localhost:7860
+```
+
+See [production monitoring](../docs/PRODUCTION_MONITORING.md) for headless
+load-test commands and saved reports. Model quality benchmarks remain in
+`benchmarks/`.

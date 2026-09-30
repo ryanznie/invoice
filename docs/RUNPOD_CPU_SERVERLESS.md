@@ -70,7 +70,7 @@ uv run python scripts/smoke_test_runpod_backend.py \
   --expected PEGIV-1030765
 ```
 
-This calls the same `runpod_handler.handler` function used in production and
+This calls the same `src.runpod_handler.handler` function used in production and
 runs the real CPU inference stack in the current Python environment. A mismatch
 returns a non-zero exit code, which makes the command suitable for CI.
 
@@ -143,11 +143,24 @@ runpodctl serverless logs 5zp7mr2l2nhbxq --since 15m
 
 ## Build and validate
 
+Worker dependencies are declared in `deploy/runpod/pyproject.toml` and pinned,
+including transitive dependencies, in `deploy/runpod/uv.lock`. This standalone
+project keeps the CPU worker independent of the root development dependencies.
+The Docker build uses uv 0.9.24 and `uv sync --locked --no-dev` to install them
+into `/opt/venv`; a stale lockfile fails the build.
+
+After editing worker dependencies, regenerate and verify the lockfile:
+
+```bash
+uv lock --project deploy/runpod --python 3.11.13
+uv lock --project deploy/runpod --python 3.11.13 --check
+```
+
 Runpod workers are Linux AMD64 even when the image is built from Apple Silicon:
 
 ```bash
 docker buildx build --platform linux/amd64 \
-  --file Dockerfile.runpod.cpu \
+  --file deploy/docker/Dockerfile.runpod.cpu \
   --tag ghcr.io/ryanznie/invoice-ner-backend:v0.3.0-cpu.2 \
   --load .
 ```
@@ -155,7 +168,7 @@ docker buildx build --platform linux/amd64 \
 Always use an immutable version tag. Do not deploy `latest`.
 
 The application image does not read model weights from the local checkout.
-`Dockerfile.runpod.cpu` downloads the model and processor files from the exact
+`deploy/docker/Dockerfile.runpod.cpu` downloads the model and processor files from the exact
 Hugging Face commit shown above, then verifies the ONNX SHA-256 during the
 build. The build therefore works from a fresh clone and cannot silently follow
 a moving `main` revision.
@@ -193,7 +206,7 @@ GHCR mirror uses the same canonical model name:
 
 ```bash
 docker buildx build --platform linux/amd64 \
-  --file Dockerfile.runpod.model \
+  --file deploy/docker/Dockerfile.runpod.model \
   --tag ghcr.io/ryanznie/layoutlmv3-lora-invoice-number:onnx-v2.0.0 \
   --provenance=false \
   --push .

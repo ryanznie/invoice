@@ -2,7 +2,7 @@ import base64
 
 import pytest
 
-import runpod_handler
+from src import runpod_handler
 
 
 def test_handler_decodes_files_and_calls_prediction(monkeypatch):

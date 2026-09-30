@@ -60,7 +60,7 @@ wandb/
 Thumbs.db
 
 # Docker
-Dockerfile*
+deploy/docker/
 docker-compose.yml
 .dockerignore
 triton_model_repo/
@@ -73,4 +73,4 @@ artifacts/
 .pre-commit-config.yaml
 
 # Misc
-setup.sh
+scripts/setup.sh

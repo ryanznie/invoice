@@ -22,7 +22,7 @@ This guide covers setting up the development environment, data labeling, model t
    
    This will create a virtual environment, install all necessary dependencies using `uv`, and set up pre-commit hooks.
    ```bash
-   bash setup.sh
+   bash scripts/setup.sh
    ```
 
 3. **Activate the virtual environment:**
@@ -304,19 +304,19 @@ pre-commit autoupdate
 
 ### Local Docker Build
 
-The local FastAPI/Gradio image uses `Dockerfile.local`. The production Runpod
+The local FastAPI/Gradio image uses `deploy/docker/Dockerfile.local`. The production Runpod
 worker and model bundle use their explicitly named Dockerfiles documented in
 [`RUNPOD_CPU_SERVERLESS.md`](RUNPOD_CPU_SERVERLESS.md).
 
 ```bash
 # Build image
-docker build --file Dockerfile.local -t invoice-ner:latest .
+docker build --file deploy/docker/Dockerfile.local -t invoice-ner:latest .
 
 # Build with specific tag
-docker build --file Dockerfile.local -t invoice-ner:v1.0.0 .
+docker build --file deploy/docker/Dockerfile.local -t invoice-ner:v1.0.0 .
 
 # Build with no cache
-docker build --no-cache --file Dockerfile.local -t invoice-ner:latest .
+docker build --no-cache --file deploy/docker/Dockerfile.local -t invoice-ner:latest .
 ```
 
 ### Running with Docker Compose
@@ -361,7 +361,7 @@ FROM python:3.10-slim
 WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
 COPY . .
-CMD ["python", "app.py"]
+CMD ["python", "-m", "src.demo"]
 ```
 
 ## 🐛 Troubleshooting

@@ -18,15 +18,14 @@ Named Entity Recognition (NER) for invoice processing using LayoutLMv3 with LoRA
 
 ```
 invoice-ner/
-├── app.py                      # Main FastAPI application
 ├── docker-compose.yml          # Docker Compose configuration
-├── Dockerfile.local            # Local FastAPI/Gradio image
-├── Dockerfile.runpod.cpu       # Production Runpod CPU worker image
-├── Dockerfile.runpod.model     # Optional model-only OCI image
 ├── pyproject.toml              # Python project configuration & dependencies
-├── setup.sh                    # Development environment setup script
 ├── .env.example                # Environment variables template
 ├── uv.lock                     # Lock file for reproducible installs
+│
+├── deploy/                     # Container builds and deployment dependencies
+│   ├── docker/                 # Local, Runpod CPU, and model Dockerfiles
+│   └── runpod/                # Worker pyproject.toml and uv.lock
 │
 ├── data/                       # Dataset and labeling tools
 │   ├── app.py                  # Streamlit labeling application
@@ -61,6 +60,7 @@ invoice-ner/
 │   └── README.md               # Benchmarking documentation
 │
 ├── scripts/                    # Utility scripts
+│   ├── setup.sh                # Development environment setup
 │   ├── preprocess.py           # Data preprocessing utilities
 │   ├── export_to_onnx.py       # ONNX export script
 │   ├── setup_triton_repo.py    # Triton repo setup script
@@ -68,6 +68,8 @@ invoice-ner/
 │
 ├── src/                        # Core application modules
 │   ├── __init__.py
+│   ├── demo.py                 # FastAPI/Gradio entry point
+│   ├── runpod_handler.py       # Runpod serverless worker entry point
 │   ├── api.py                   # FastAPI endpoints
 │   ├── gradio_ui.py             # Gradio interface
 │   ├── inference.py             # Model inference logic
@@ -82,6 +84,7 @@ invoice-ner/
 │   └── TESTING.md               # Testing guide and validation
 │
 ├── tests/                      # Test suite
+│   ├── load/locustfile.py      # HTTP load testing
 │   ├── conftest.py             # Shared test fixtures
 │   ├── test_app.py             # Application tests
 │   ├── test_scripts.py         # Script tests
@@ -91,6 +94,12 @@ invoice-ner/
 ├── LICENSE                     # MIT License
 └── README.md                   # This file                   
 ```
+
+Run commands from the repository root: `python -m src.demo`,
+`bash scripts/setup.sh`, and `uv run locust -f tests/load/locustfile.py`.
+Docker builds use the repository root as their context and an explicit
+`--file deploy/docker/Dockerfile.local` (or the corresponding Runpod Dockerfile).
+Compose and tool configuration stay at the root for automatic discovery.
 
 ### Key Directories
 
@@ -138,7 +147,7 @@ cp .env.example .env
 uv pip install -e .
 
 # 4. Run the app (automatically loads .env)
-python app.py
+python -m src.demo
 
 # 5. Open browser
 open http://localhost:7860
@@ -244,7 +253,7 @@ docker run --rm -p 8000:8000 -p 8001:8001 -p 8002:8002 \
   tritonserver --model-repository=/models
 ```
 
-Configure `.env` and run `python app.py` to use the API:
+Configure `.env` and run `python -m src.demo` to use the API:
 ```bash
 INFERENCE_BACKEND=triton
 TRITON_URL=localhost:8000
@@ -270,10 +279,10 @@ Override `.env` values from the command line:
 
 ```bash
 # Override port
-PORT=9000 python app.py
+PORT=9000 python -m src.demo
 
 # Override multiple variables
-LOG_LEVEL=DEBUG DEVICE=cpu PORT=8080 python app.py
+LOG_LEVEL=DEBUG DEVICE=cpu PORT=8080 python -m src.demo
 
 # Docker Compose
 PORT=9000 docker-compose up

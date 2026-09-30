@@ -19,7 +19,7 @@ def client():
 @pytest.fixture
 def full_app_client():
     """Create a test client for the full app with Gradio mounted"""
-    # Import the fully configured app from root app.py
+    # Import the fully configured app from src.demo
     import sys
     from pathlib import Path
 
@@ -28,7 +28,7 @@ def full_app_client():
     if str(repo_root) not in sys.path:
         sys.path.insert(0, str(repo_root))
 
-    import app as root_app
+    from src import demo as root_app
 
     return TestClient(root_app.app)
 
