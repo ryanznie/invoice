@@ -1,118 +1,26 @@
-# Invoice Extraction Benchmarking
+# Benchmarks
 
-Benchmark invoice number extraction models with W&B tracking for accuracy, latency, fallback rate, and human review metrics.
+The benchmark script compares hybrid, LayoutLMv3, ONNX, and OpenRouter extraction and logs per-invoice and aggregate results to Weights & Biases.
 
-## Installation
+Install the development extra. Authenticate with W&B, or use offline mode:
 
-```bash
-# Dependencies already in pyproject.toml
-uv pip install -e .
+    uv sync --extra dev
+    uv run wandb login
 
-# Login to W&B (or use --offline flag)
-wandb login
-```
+Example:
 
-## Usage
+    uv run invoice-ner-benchmark --model hybrid --data-dir data/test --split test --offline
 
-```bash
-# Benchmark hybrid model (heuristics + LayoutLMv3 fallback)
-python benchmarks/benchmark.py \
-  --model hybrid \
-  --data-dir data/train \
-  --run-name "layoutlmv3-lora-heuristics-train-mps" \
-  --device mps \
-  --split train
+Use --help for the full CLI options. The script also accepts --device and --model-path.
 
-# Benchmark hybrid model with ONNX fallback
-python benchmarks/benchmark.py \
-  --model hybrid \
-  --data-dir data/test \
-  --model-path models/artifacts/layoutlmv3_invoice_ner.onnx \
-  --run-name "layoutlmv3-lora-heuristics-ONNX"
+## Input layout
 
-# Benchmark Finetuned LayoutLMv3 only
-python benchmarks/benchmark.py \
-  --model layoutlmv3 \
-  --data-dir data/test \
-  --run-name "layoutlmv3-lora-invoice-number-mps" \
-  --device mps
+For the test split, the benchmark expects:
 
-# Benchmark ONNX model
-python benchmarks/benchmark.py \
-  --model onnx \
-  --data-dir data/test \
-  --model-path models/artifacts/layoutlmv3_invoice_ner.onnx \
-  --run-name "onnx-test"
+- JSON examples at data/test/test.json
+- Labels at data/SROIE2019/test/test_labels.json
+- Images and OCR text at data/SROIE2019/test/img and data/SROIE2019/test/box
 
-# Benchmark OpenRouter-hosted VLM (requires OPENROUTER_API_KEY env var)
-python benchmarks/benchmark.py \
-  --model openrouter \
-  --data-dir data/test \
-  --run-name "qwen2.5-vl-72b-openrouter"
+For training, use data/train/train.json and data/SROIE2019/train/labels.json, img, and box. Each JSON example contains file, words, and bboxes. The preprocessing script can create these JSON files; choose its output path to match this layout. The labeling app saves labels.json and test_labels.json in data/, so copy them into the split directories if the benchmark needs those labels.
 
-# Benchmark a different OpenRouter vision model
-python benchmarks/benchmark.py \
-  --model openrouter \
-  --data-dir data/test \
-  --model-path qwen/qwen3-vl-235b-a22b-instruct \
-  --run-name "qwen3-vl-openrouter"
-```
-
-## Available Models
-
-- **`hybrid`** - Heuristics first, LayoutLMv3 fallback (current production architecture)
-- **`layoutlmv3`** - LayoutLMv3 model only
-- **`onnx`** - ONNX Runtime inference
-- **`openrouter`** - Hosted VLM via OpenRouter (defaults to Qwen2.5-VL 72B)
-
-## Tracked Metrics
-
-**Per-Invoice:**
-- Prediction vs ground truth (correctness)
-- Latency (ms)
-- Method used (heuristic/model/fallback)
-- Confidence score
-- Human review flag (no prediction OR multiple words)
-
-**Aggregate:**
-- Accuracy, latency (mean/P95/P99)
-- Fallback rate, human review rate
-- Method breakdown
-
-## Command-Line Arguments
-
-**Required:**
-- `--model` - Model to benchmark (`hybrid`, `layoutlmv3`, `onnx`, `openrouter`)
-- `--data-dir` - Path to data directory
-
-**Optional:**
-- `--model-path` - Path to model file (required for `onnx`) or hosted model ID (optional for `openrouter`)
-- `--split` - Dataset split (`test` or `train`, default: `test`)
-- `--run-name` - Name for this run
-- `--wandb-project` - W&B project name
-- `--tags` - Tags for organizing runs (space-separated)
-- `--device` - Device (`cpu`, `cuda`, `mps`)
-- `--offline` - Run without W&B sync
-
-
-## Data Format
-
-Expected directory structure:
-
-```
-data/SROIE2019/
-├── test/  (or train/)
-    ├── img/               # Invoice images (.jpg)
-    ├── box/               # OCR txt files (x1,y1,x2,y2,x3,y3,x4,y4,text format)
-    └── test_labels.json   # Ground truth {"file.jpg": "invoice_number"}
-```
-
-**Note:** Benchmark reads OCR data from `.txt` files in `box/` directory, matching the API/notebook approach.
-
-Ground truth format:
-```json
-{
-  "X001.jpg": "INV-123456",
-  "X002.jpg": "ambiguous"  // automatically skipped
-}
-```
+Ambiguous labels are skipped. See scripts/preprocess.py --help for dataset preparation.

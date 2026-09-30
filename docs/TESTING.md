@@ -1,107 +1,36 @@
-# Testing Guide
+# Testing
 
-The project favors end-to-end checks for behavioral changes. API contract runs
-write deterministic JSON artifacts that can be inspected or compared in CI.
+Install the development dependencies and run the suite from the repository root:
 
-## Quick Start
+    uv sync --extra dev
+    uv run pytest
 
-```bash
-# Install dependencies
-uv sync
+Pytest discovers tests under tests/. CI runs the standard suite without tests/e2e, then runs the API contract check separately.
 
-# Run all tests
-uv run pytest
+## API contract
 
-# Run with coverage
-uv run pytest --cov=src --cov=scripts --cov-report=html
+This exercises the real FastAPI routes and multipart parser with local deterministic inference doubles. It does not call OpenRouter.
 
-# View coverage report
-open htmlcov/index.html
-```
+    uv run pytest --no-cov tests/e2e/test_api_contract.py -q
 
-## Backend API Contract E2E
+The result is written to docs/artifacts/api-contract-e2e.json. The covered failures and expected responses are listed in [API_CONTRACT_FAILURE_MATRIX.md](API_CONTRACT_FAILURE_MATRIX.md).
 
-Run the request contract through the real FastAPI routes and multipart parser:
+## Processor startup in the production image
 
-```bash
-uv run pytest --no-cov tests/e2e/test_api_contract.py -q
-```
+Requires Docker and the pinned worker image. Hugging Face access is disabled inside the test container.
 
-This covers readiness, pre-readiness rejection, exact and oversized upload
-boundaries, malformed requests, sanitized errors, and the enabled/disabled
-OpenRouter fallback branches. It never calls OpenRouter. The deterministic
-result is written to
-[`artifacts/api-contract-e2e.json`](artifacts/api-contract-e2e.json).
+    RUN_PROCESSOR_CONTAINER_E2E=1 uv run pytest --no-cov tests/e2e/test_processor_startup.py -q
 
-Run the real bundled processor and ONNX model startup branches offline in the
-pinned production image:
+The result is written to docs/artifacts/processor-startup-e2e.json. This check is opt-in and is skipped by default.
 
-```bash
-RUN_PROCESSOR_CONTAINER_E2E=1 \
-  uv run pytest --no-cov tests/e2e/test_processor_startup.py -q
-```
+## Other checks
 
-This checks both the bundled processor path and the fallback from an invalid
-`PROCESSOR_PATH` to the local `BASE_MODEL`. `HF_HUB_OFFLINE` and
-`TRANSFORMERS_OFFLINE` are enabled inside the container, so a passing run proves
-that startup does not depend on a Hugging Face download. The result is written
-to
-[`artifacts/processor-startup-e2e.json`](artifacts/processor-startup-e2e.json).
+Run the standalone fallback verification in its own process:
 
-The complete failure inventory and expected responses are in
-[`API_CONTRACT_FAILURE_MATRIX.md`](API_CONTRACT_FAILURE_MATRIX.md).
+    uv run python tests/verify_fallback.py
 
-## Test Suite
+Run the Locust profile against a live API. It requires the labeled dataset paths described in tests/load/locustfile.py:
 
-The pytest suite covers existing application and preprocessing behavior. The
-two executable E2E checks above own the new deployment API and processor-startup
-contracts.
+    uv run locust -f tests/load/locustfile.py --host=http://localhost:7860
 
-## What's Tested
-
-All functions have comprehensive validation:
-- ✅ Input types and ranges
-- ✅ Error handling and edge cases
-- ✅ Integration workflows
-- ✅ API endpoints
-
-## Running Specific Tests
-
-```bash
-# By file
-pytest tests/test_app.py
-
-# By class
-pytest tests/test_app.py::TestPredictInvoice
-pytest tests/test_scripts.py::TestSplitInvoiceString
-```
-
-### By Test Function
-```bash
-pytest tests/test_app.py::TestPredictInvoice::test_predict_invalid_box_geometry
-```
-
-### By Pattern
-```bash
-pytest -k "validation"             # Run tests with "validation" in name
-pytest -k "edge_case"              # Run edge case tests
-pytest -k "normalize"              # Run normalization tests
-```
-
-## CI/CD Integration
-
-Tests run automatically on every push and pull request via GitHub Actions.
-
-See `.github/workflows/ci.yml` for the full configuration.
-
-## Troubleshooting
-
-**Import errors**: Run from project root
-```bash
-cd /Users/ryanznie/Desktop/work/invoice-ner
-pytest
-```
-
-**Model loading**: Tests mock the model by default
-
-For more details, see `tests/README.md`
+See [Monitoring](../monitoring/README.md) for saved load-test and offline-evaluation commands.

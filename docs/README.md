@@ -1,86 +1,12 @@
 # Documentation
 
-Comprehensive documentation for the Invoice NER project.
-
-## Available Documentation
-
-### 📖 [DEV_SETUP.md](./DEV_SETUP.md)
-Developer setup guide covering:
-- Development environment setup
-- Data labeling workflow
-- Model training and fine-tuning
-- Dataset preparation
-- Troubleshooting
-
-### 🔌 [API_USAGE.md](./API_USAGE.md)
-API documentation and examples:
-- REST API reference
-- Request/Response formats
-- Error handling
-- Best practices
-
-### 🧪 [TESTING.md](./TESTING.md)
-Testing guide and validation documentation:
-- Quick start for running tests
-- Test suite overview (107 tests)
-- Input validation
-- Coverage reporting
-- CI/CD integration
-- Best practices
-
-### 📈 [PRODUCTION_MONITORING.md](./PRODUCTION_MONITORING.md)
-Production monitoring and SLO guide:
-- Service level indicators and objectives
-- Error budget policy
-- Grafana dashboard layout
-- Load-test profiles
-- Offline eval release gates
-- Incident runbook
-
-## Quick Links
-
-### For Developers
-- **Getting Started**: See main [README.md](../README.md)
-- **Setup Environment**: [DEV_SETUP.md](./DEV_SETUP.md)
-- **API Docs**: [API_USAGE.md](./API_USAGE.md)
-- **Run Tests**: [TESTING.md](./TESTING.md)
-
-### For Production
-- **API Reference**: [API_USAGE.md](./API_USAGE.md)
-- **Testing & Validation**: [TESTING.md](./TESTING.md)
-- **Monitoring & SLOs**: [PRODUCTION_MONITORING.md](./PRODUCTION_MONITORING.md)
-- **Docker Deployment**: See main [README.md](../README.md)
-
-### For Research
-- **Benchmarking**: [../benchmarks/README.md](../benchmarks/README.md)
-- **Notebooks**: See [../notebooks/](../notebooks/)
-- **Training**: [DEV_SETUP.md](./DEV_SETUP.md)
-
-## Project Structure
-
-```
-docs/
-├── README.md                   # This file
-├── API_USAGE.md                # API documentation
-├── DEV_SETUP.md                # Development setup
-├── PRODUCTION_MONITORING.md    # Monitoring and SLOs
-└── TESTING.md                  # Testing guide
-```
-
-## Contributing
-
-When adding new documentation:
-1. Place it in the `docs/` directory
-2. Update this README with a link and description
-3. Add cross-references to related documentation
-4. Follow the existing documentation style
-5. Include code examples where appropriate
-
-## Documentation Standards
-
-- **Clear headings**: Use descriptive section headers
-- **Code examples**: Include runnable code snippets
-- **Prerequisites**: List requirements at the start
-- **Troubleshooting**: Add common issues and solutions
-- **Links**: Cross-reference related documentation
-- **Updates**: Keep documentation in sync with code changes
+- [Developer setup and data labeling](DEV_SETUP.md)
+- [API reference and upload format](API_USAGE.md)
+- [Testing and E2E checks](TESTING.md)
+- [API failure contract](API_CONTRACT_FAILURE_MATRIX.md)
+- [Production monitoring](PRODUCTION_MONITORING.md)
+- [Runpod CPU deployment](RUNPOD_CPU_SERVERLESS.md)
+- [Benchmarking](../benchmarks/README.md)
+- [Data labeling tool](../data/README.md)
+- [Dataset and labeling notes (Notion)](https://www.notion.so/Dataset-Documentation-Notes-1609faffd568479dbaf1c072b23c472d)
+- [Monitoring runbook](../monitoring/README.md)

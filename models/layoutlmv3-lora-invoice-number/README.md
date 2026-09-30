@@ -139,7 +139,7 @@ commit SHA.
 
 ### Dataset
 [SROIE 2019 w/ invoices Dataset](https://www.kaggle.com/datasets/ryanznie/sroie-datasetv2-with-labels)
-[Dataset Documentations](https://www.notion.so/Dataset-Documentation-Notes-1609faffd568479dbaf1c072b23c472d)
+[Dataset and labeling notes (Notion)](https://www.notion.so/Dataset-Documentation-Notes-1609faffd568479dbaf1c072b23c472d)
 
 ### Training Configuration
 - **Hardware:** Apple MacBook M2 (8-core CPU, 16GB RAM)
@@ -169,7 +169,7 @@ commit SHA.
 
 ## Performance
 
-The model performs well on invoice number extraction tasks, correctly combining multi-token predictions into complete invoice numbers (e.g., `PEGIV-1030765`). After postprocessing, it achieves ~81% accuracy on the SROIE 2019 test set.
+An earlier SROIE 2019 evaluation reported about 81% invoice-level accuracy after postprocessing. The evaluation artifact is not included here, so treat that figure as historical. Use the project's [offline evaluation](../../docs/PRODUCTION_MONITORING.md#offline-eval-gate) with a labeled dataset to measure a current release.
 
 ### Evaluation Metrics
 - F1-score for entity-level invoice number recognition
