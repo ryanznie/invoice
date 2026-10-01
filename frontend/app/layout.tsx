@@ -9,8 +9,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Invoice NER",
-  description: "Vercel frontend for invoice number extraction",
+  title: "Invoice review",
+  description: "Upload a receipt, extract its invoice number, and check it against the original.",
 };
 
 export default function RootLayout({

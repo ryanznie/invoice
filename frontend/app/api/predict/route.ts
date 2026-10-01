@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { validateUploads } from "@/lib/upload";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -9,8 +10,6 @@ const runpodApiKey = process.env.RUNPOD_API_KEY;
 const runpodInvokeBaseUrl =
   process.env.RUNPOD_INVOKE_BASE_URL ?? "https://api.runpod.ai/v2";
 
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
-const MAX_OCR_BYTES = 2 * 1024 * 1024;
 const TERMINAL_STATUSES = new Set([
   "COMPLETED",
   "FAILED",
@@ -38,12 +37,6 @@ async function callRunpod(formData: FormData) {
   const ocrFile = formData.get("ocr_file");
   if (!(image instanceof File) || !(ocrFile instanceof File)) {
     return error("An invoice image and OCR TXT/JSON file are required.", 400);
-  }
-  if (image.size > MAX_IMAGE_BYTES) {
-    return error("The invoice image must be 10 MB or smaller.", 413);
-  }
-  if (ocrFile.size > MAX_OCR_BYTES) {
-    return error("The OCR file must be 2 MB or smaller.", 413);
   }
 
   const input = {
@@ -101,6 +94,13 @@ async function callRunpod(formData: FormData) {
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
+    const image = formData.get("image");
+    const ocr = formData.get("ocr_file");
+    if (!(image instanceof File) || !(ocr instanceof File)) {
+      return error("A receipt image and matching OCR file are required.", 400);
+    }
+    const validation = validateUploads(image, ocr);
+    if (validation) return error(validation, 400);
     if (runpodEndpointId && runpodApiKey) {
       return await callRunpod(formData);
     }
