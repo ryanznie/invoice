@@ -38,13 +38,13 @@
     {
       "id": "validate-uploaded-inputs",
       "rule": "API and inference changes must validate uploaded files, OCR JSON/TXT payloads, request size assumptions, and malformed input paths before processing.",
-      "scope": ["app.py", "src/**", "frontend/app/api/**"],
+      "scope": ["src/**", "frontend/app/api/**"],
       "severity": "high"
     },
     {
       "id": "preserve-extraction-contract",
       "rule": "Changes to extraction outputs must preserve or explicitly document the API response fields used by the frontend and tests, including invoice_number, extraction_method, total_words, and model_device.",
-      "scope": ["app.py", "src/**", "frontend/**", "docs/API_USAGE.md"],
+      "scope": ["src/**", "frontend/**", "docs/API_USAGE.md"],
       "severity": "high"
     },
     {
@@ -55,13 +55,13 @@
     {
       "id": "deployment-config-consistency",
       "rule": "Docker, docker-compose, RunPod, Triton, and frontend deployment changes must keep ports, environment variables, health checks, and model paths consistent across docs and scripts.",
-      "scope": ["Dockerfile*", "docker-compose.yml", "scripts/**", "triton_model_repo/**", "docs/**", "frontend/**"],
+      "scope": ["deploy/**", "docker-compose.yml", "scripts/**", "triton_model_repo/**", "docs/**", "frontend/**"],
       "severity": "medium"
     },
     {
       "id": "test-risky-paths",
       "rule": "Behavioral changes to inference, validation, postprocessing, API routes, or frontend request handling should include focused tests or a clear explanation when tests are not practical.",
-      "scope": ["app.py", "src/**", "tests/**", "frontend/**"],
+      "scope": ["src/**", "tests/**", "frontend/**"],
       "severity": "medium"
     },
     {

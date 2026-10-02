@@ -25,6 +25,9 @@ jobs:
         curl -LsSf https://astral.sh/uv/install.sh | sh
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
     
+    - name: Verify Runpod dependency lockfile
+      run: uv lock --project deploy/runpod --python 3.11 --check
+
     - name: Install dependencies
       run: |
         uv venv
@@ -34,7 +37,22 @@ jobs:
     - name: Run tests with pytest
       run: |
         source .venv/bin/activate
-        pytest --cov=app --cov=scripts --cov-report=term-missing --cov-report=json --cov-report=html -v
+        pytest --ignore=tests/e2e --cov=src --cov=scripts --cov-report=term-missing --cov-report=json --cov-report=html -v
+
+    - name: Run API contract E2E
+      run: |
+        rm -f docs/artifacts/api-contract-e2e.json
+        source .venv/bin/activate
+        pytest --no-cov tests/e2e/test_api_contract.py -v
+
+    - name: Upload API contract E2E artifact
+      if: always()
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: api-contract-e2e
+        path: docs/artifacts/api-contract-e2e.json
+        if-no-files-found: error
+        retention-days: 30
     
     - name: Coverage comment
       if: github.event_name == 'pull_request'
@@ -45,7 +63,7 @@ jobs:
         MINIMUM_ORANGE: 60
     
     - name: Upload coverage reports
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: coverage-report
         path: htmlcov/
@@ -78,4 +96,4 @@ jobs:
     - name: Check code formatting with ruff
       run: |
         source .venv/bin/activate
-        ruff check app.py scripts/*.py tests/*.py
+        ruff check src/demo.py src/runpod_handler.py scripts/*.py tests/*.py tests/e2e/*.py

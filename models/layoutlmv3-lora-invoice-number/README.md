@@ -63,14 +63,50 @@ Extracting invoice or bill numbers from scanned receipts in accounting automatio
 
 ## Example Usage
 
+This repository contains both the LoRA adapter and a production ONNX export.
+Pin the full Hub commit SHA in production rather than downloading from `main`.
+
+### LoRA adapter
+
 ```python
-from transformers import AutoProcessor, AutoModelForTokenClassification
+from transformers import (
+    AutoTokenizer,
+    LayoutLMv3ForTokenClassification,
+    LayoutLMv3ImageProcessor,
+    LayoutLMv3Processor,
+)
+from peft import PeftModel
 from PIL import Image
 import torch
 
-# Load processor and model
-processor = AutoProcessor.from_pretrained("ryanznie/layoutlmv3-lora-invoice-number")
-model = AutoModelForTokenClassification.from_pretrained("ryanznie/layoutlmv3-lora-invoice-number")
+adapter_id = "ryanznie/layoutlmv3-lora-invoice-number"
+adapter_revision = "7dc28f5a3b14aa100ba432ee1b0a6cac6c7b2c5c"
+base_revision = "cfbbbff0762e6aab37086fdd4739ad14fe7d5db4"
+
+image_processor = LayoutLMv3ImageProcessor.from_pretrained(
+    adapter_id,
+    revision=adapter_revision,
+    apply_ocr=False,
+)
+tokenizer = AutoTokenizer.from_pretrained(
+    adapter_id,
+    revision=adapter_revision,
+)
+processor = LayoutLMv3Processor(
+    image_processor=image_processor,
+    tokenizer=tokenizer,
+)
+base_model = LayoutLMv3ForTokenClassification.from_pretrained(
+    "microsoft/layoutlmv3-base",
+    revision=base_revision,
+    num_labels=3,
+)
+model = PeftModel.from_pretrained(
+    base_model,
+    adapter_id,
+    revision=adapter_revision,
+).merge_and_unload()
+model.eval()
 
 # Example input
 image = Image.open("invoice_sample.jpg")
@@ -88,13 +124,22 @@ predictions = torch.argmax(outputs.logits, dim=-1)
 print(predictions)
 ```
 
+### Production ONNX artifact
+
+The CPU deployment uses `onnx/layoutlmv3_invoice_ner.onnx`. Its SHA-256 is
+`fff762ae2eb7976f33137fdef64a9cc04c6cbbbe712a3fb0ae39f298fb8386dc`.
+See `onnx/model_metadata.json` and `onnx/model_provenance.json` for the pinned
+source revisions, exporter identity, and PyTorch-to-ONNX parity result. The
+`onnx-v1` tag is provided for discovery; production builds pin the full Hub
+commit SHA.
+
 ---
 
 ## Training Details
 
 ### Dataset
 [SROIE 2019 w/ invoices Dataset](https://www.kaggle.com/datasets/ryanznie/sroie-datasetv2-with-labels)
-[Dataset Documentations](https://www.notion.so/Dataset-Documentation-Notes-1609faffd568479dbaf1c072b23c472d)
+[Dataset and labeling notes (Notion)](https://www.notion.so/Dataset-Documentation-Notes-1609faffd568479dbaf1c072b23c472d)
 
 ### Training Configuration
 - **Hardware:** Apple MacBook M2 (8-core CPU, 16GB RAM)
@@ -124,7 +169,7 @@ print(predictions)
 
 ## Performance
 
-The model performs well on invoice number extraction tasks, correctly combining multi-token predictions into complete invoice numbers (e.g., `PEGIV-1030765`). After postprocessing, it achieves ~81% accuracy on the SROIE 2019 test set.
+An earlier SROIE 2019 evaluation reported about 81% invoice-level accuracy after postprocessing. The evaluation artifact is not included here, so treat that figure as historical. Use the project's [offline evaluation](../../docs/PRODUCTION_MONITORING.md#offline-eval-gate) with a labeled dataset to measure a current release.
 
 ### Evaluation Metrics
 - F1-score for entity-level invoice number recognition

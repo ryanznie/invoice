@@ -36,7 +36,8 @@ app = gr.mount_gradio_app(app, demo, path="/")
 # MAIN
 # ============================================================================
 
-if __name__ == "__main__":
+
+def main():
     import uvicorn
     import argparse
 
@@ -75,9 +76,13 @@ if __name__ == "__main__":
     print("=" * 60 + "\n")
 
     uvicorn.run(
-        "app:app" if args.debug else app,
+        "src.demo:app" if args.debug else app,
         host=args.host,
         port=args.port,
         reload=args.debug,
         log_level="debug" if args.debug else "info",
     )
+
+
+if __name__ == "__main__":
+    main()

@@ -1,107 +1,34 @@
 # Monitoring Runbook
 
-## Start the Stack
+The local stack includes the API, Triton, Prometheus, and Grafana. Compose requires a .env file with a non-empty GRAFANA_ADMIN_PASSWORD.
 
-Create a local `.env` file before starting the stack:
+    cp .env.example .env
 
-```bash
-cp .env.example .env
-sed -i.bak "s|^GRAFANA_ADMIN_PASSWORD=.*|GRAFANA_ADMIN_PASSWORD=$(openssl rand -hex 24)|" .env
-rm .env.bak
-```
+Set a strong Grafana password in .env, then start the stack:
 
-Keep `GRAFANA_ADMIN_PASSWORD` private. Grafana binds to localhost by default,
-but change the password again before sharing access to Grafana.
+    docker compose up -d --build invoice-ner tritonserver prometheus grafana
 
-```bash
-docker compose up -d --build invoice-ner tritonserver prometheus grafana
-```
+Grafana is bound to localhost:3000 by default. Keep it private; only bind it to another interface behind trusted network controls.
 
-Grafana binds to `127.0.0.1:3000` by default. Set `GRAFANA_HOST=0.0.0.0`
-only when the Docker host is protected by trusted network controls.
+## Checks
 
-## Smoke Test
+    uv run python scripts/monitoring_smoke.py
 
-```bash
-uv run python scripts/monitoring_smoke.py
-```
+The smoke test checks API health and metrics, Prometheus readiness and targets, Grafana health, and provisioned dashboards.
 
-Checks API health, API metrics, Prometheus readiness, Prometheus scrape targets,
-Grafana health, and all provisioned `Invoice NER` dashboards.
+To regenerate dashboards and restart Grafana:
 
-## Production SLOs
+    uv run python scripts/generate_grafana_dashboards.py
+    docker compose restart grafana
 
-Production SLOs, alert policy, error budget, eval gates, and hardening backlog
-live in:
+## Load and quality checks
 
-```text
-docs/PRODUCTION_MONITORING.md
-```
+Interactive Locust:
 
-## Build Grafana Dashboards
+    uv run locust -f tests/load/locustfile.py --host=http://localhost:7860
 
-Generate the provisioned dashboard JSON files:
+Offline extraction evaluation:
 
-```bash
-uv run python scripts/generate_grafana_dashboards.py
-```
+    uv run python scripts/eval_invoice_extraction.py --api-url http://localhost:7860 --dataset data/train/qa_dataset.json --image-root data/SROIE2019/train/img --limit 25 --output-dir monitoring/evals/latest
 
-Grafana loads every JSON file from:
-
-```text
-monitoring/grafana/dashboards/
-```
-
-The dashboards are mounted into the container at `/var/lib/grafana/dashboards`
-and provisioned by:
-
-```text
-monitoring/grafana/provisioning/dashboards/dashboard.yml
-```
-
-After generation, restart Grafana or wait for the provisioning poll:
-
-```bash
-docker compose restart grafana
-```
-
-Open:
-
-- `http://localhost:3000/d/invoice-ner-executive`
-- `http://localhost:3000/d/invoice-ner-api-infra`
-- `http://localhost:3000/d/invoice-ner-model`
-- `http://localhost:3000/d/invoice-ner-load-test`
-
-## Locust Load Test
-
-Interactive UI:
-
-```bash
-uv run locust -f locustfile.py --host=http://localhost:7860
-```
-
-Headless run with CSV output:
-
-```bash
-uv run locust -f locustfile.py \
-  --host=http://localhost:7860 \
-  --headless \
-  --users=10 \
-  --spawn-rate=2 \
-  --run-time=60s \
-  --csv monitoring/locust/invoice_ner
-```
-
-## Offline Extraction Eval
-
-```bash
-uv run python scripts/eval_invoice_extraction.py \
-  --api-url http://localhost:7860 \
-  --dataset data/train/qa_dataset.json \
-  --image-root data/SROIE2019/train/img \
-  --limit 25 \
-  --output-dir monitoring/evals/latest
-```
-
-Tracks exact match, normalized exact match, edit distance, valid-format rate,
-not-found rate, extraction method counts, and latency summary.
+These checks need a running API and the corresponding local dataset. See [Production Monitoring](../docs/PRODUCTION_MONITORING.md) for SLOs, alert policy, and full runbook.

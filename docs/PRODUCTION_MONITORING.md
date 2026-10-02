@@ -20,17 +20,17 @@ production baseline exists.
 | --- | --- | --- | --- | --- |
 | API availability | successful `/predict` requests / total `/predict` requests | >= 99.5% | Prometheus `inference_requests_total` | 5m and 30m |
 | API E2E latency | `/predict` p95 end-to-end latency | baseline first, then set target | Prometheus `inference_latency_seconds_bucket` | 5m |
-| Model latency | p95 model-only latency | < 1.0s | API `model_inference_latency_seconds_bucket` after rebuild | 5m |
-| Model tail latency | p99 model-only latency | < 2.0s | API `model_inference_latency_seconds_bucket` after rebuild | 5m |
+| Model latency | p95 model-only latency | < 1.0s | Prometheus `model_inference_latency_seconds_bucket` | 5m |
+| Model tail latency | p99 model-only latency | < 2.0s | Prometheus `model_inference_latency_seconds_bucket` | 5m |
 | API health | `invoice-ner-app` scrape health | up | Prometheus `up{job="invoice-ner-app"}` | 1m |
 | Triton health | `tritonserver` scrape health | up | Prometheus `up{job="tritonserver"}` | 1m |
 | Extraction coverage | `Not Found` predictions / total predictions | < baseline + 10 percentage points | API metric to add | 30m |
-| Fallback behavior | fallback requests / total predictions | within baseline band | Prometheus `fallback_total` | 30m |
+| Model usage | requests that miss heuristics / total predictions | within baseline band | Prometheus `fallback_total` | 30m |
 | Offline quality gate | normalized exact match on labeled eval set | >= agreed release threshold | `scripts/eval_invoice_extraction.py` output | per release |
 
-Quality SLOs need real baselines. Do not page on `not_found_rate` or fallback
-rate until at least one representative production-like run establishes normal
-ranges.
+Quality SLOs need real baselines. Do not page on `not_found_rate` or heuristic
+miss rate until at least one representative production-like run establishes
+normal ranges.
 
 ## Error Budget
 
@@ -54,6 +54,8 @@ Already emitted by the API:
 - `model_inference_latency_seconds{backend,model_name}`
 - `fallback_total`
 
+`fallback_total` counts heuristic misses that continue to the local model. It does not measure OpenRouter calls.
+
 Triton is also scraped on `tritonserver:8002` and currently emits model-serving
 counters such as `nv_inference_request_duration_us`,
 `nv_inference_queue_duration_us`, `nv_inference_compute_infer_duration_us`,
@@ -71,7 +73,7 @@ Already visualized:
 - P50/P95/P99 end-to-end latency
 - P50/P95/P99 model-only latency
 - Error rate
-- Fallback rate
+- Heuristic miss rate (`fallback_total`)
 - Triton request, queue, compute, and GPU panels
 
 ## Metrics to Add Next
@@ -106,8 +108,10 @@ Page-worthy:
 
 Ticket-worthy:
 
+After `prediction_not_found_total` is added:
+
 - `not_found_rate` exceeds baseline by 10 percentage points for 30 minutes.
-- Fallback rate exceeds baseline by 10 percentage points for 30 minutes.
+- Heuristic miss rate exceeds baseline by 10 percentage points for 30 minutes.
 - Offline eval normalized exact match regresses by more than 2 percentage
   points.
 
@@ -130,7 +134,7 @@ Open:
 Minimum production dashboard sections:
 
 - Golden signals: request rate, error rate, p50/p95/p99 latency, saturation.
-- Model behavior: extraction method mix, fallback rate, not-found rate,
+- Model behavior: extraction method mix, heuristic miss rate, not-found rate,
   valid-format rate, model-only latency.
 - Triton: model readiness, inference count, queue latency, compute latency,
   memory, and GPU utilization.
@@ -140,11 +144,12 @@ Minimum production dashboard sections:
 ## Load Test Profiles
 
 All commands assume the stack is already running.
+Load tests also need the local dataset configured in tests/load/locustfile.py.
 
 ### One-Hour Real-Data Baseline
 
 ```bash
-uv run locust -f locustfile.py \
+uv run locust -f tests/load/locustfile.py \
   --host=http://localhost:7860 \
   --headless \
   --users=10 \
@@ -156,7 +161,7 @@ uv run locust -f locustfile.py \
 ### Spike Test
 
 ```bash
-uv run locust -f locustfile.py \
+uv run locust -f tests/load/locustfile.py \
   --host=http://localhost:7860 \
   --headless \
   --users=50 \
@@ -168,7 +173,7 @@ uv run locust -f locustfile.py \
 ### Soak Test
 
 ```bash
-uv run locust -f locustfile.py \
+uv run locust -f tests/load/locustfile.py \
   --host=http://localhost:7860 \
   --headless \
   --users=10 \
@@ -180,6 +185,8 @@ uv run locust -f locustfile.py \
 ## Offline Eval Gate
 
 Run before merging or deploying model/extraction changes:
+
+The dataset and images are local inputs and are not included in a fresh checkout.
 
 ```bash
 uv run python scripts/eval_invoice_extraction.py \

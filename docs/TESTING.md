@@ -1,75 +1,36 @@
-# Testing Guide
+# Testing
 
-Production-ready test suite with 107 tests covering input validation, error handling, and integration workflows.
+Install the development dependencies and run the suite from the repository root:
 
-## Quick Start
+    uv sync --extra dev
+    uv run pytest
 
-```bash
-# Install dependencies
-uv sync
+Pytest discovers tests under tests/. CI runs the standard suite without tests/e2e, then runs the API contract check separately.
 
-# Run all tests
-pytest
+## API contract
 
-# Run with coverage
-pytest --cov=app --cov=scripts --cov-report=html
+This exercises the real FastAPI routes and multipart parser with local deterministic inference doubles. It does not call OpenRouter.
 
-# View coverage report
-open htmlcov/index.html
-```
+    uv run pytest --no-cov tests/e2e/test_api_contract.py -q
 
-## Test Suite
+The result is written to docs/artifacts/api-contract-e2e.json. The covered failures and expected responses are listed in [API_CONTRACT_FAILURE_MATRIX.md](API_CONTRACT_FAILURE_MATRIX.md).
 
-**107 tests** across 3 files:
-- `tests/test_app.py` - Main application functions (59 tests)
-- `tests/test_scripts.py` - Preprocessing utilities (35 tests)
-- `tests/test_api.py` - API endpoints (13 tests)
+## Processor startup in the production image
 
-## What's Tested
+Requires Docker and the pinned worker image. Hugging Face access is disabled inside the test container.
 
-All functions have comprehensive validation:
-- ✅ Input types and ranges
-- ✅ Error handling and edge cases
-- ✅ Integration workflows
-- ✅ API endpoints
+    RUN_PROCESSOR_CONTAINER_E2E=1 uv run pytest --no-cov tests/e2e/test_processor_startup.py -q
 
-## Running Specific Tests
+The result is written to docs/artifacts/processor-startup-e2e.json. This check is opt-in and is skipped by default.
 
-```bash
-# By file
-pytest tests/test_app.py
+## Other checks
 
-# By class
-pytest tests/test_app.py::TestPredictInvoice
-pytest tests/test_scripts.py::TestSplitInvoiceString
-```
+Run the standalone fallback verification in its own process:
 
-### By Test Function
-```bash
-pytest tests/test_app.py::TestPredictInvoice::test_predict_invalid_box_geometry
-```
+    uv run python tests/verify_fallback.py
 
-### By Pattern
-```bash
-pytest -k "validation"             # Run tests with "validation" in name
-pytest -k "edge_case"              # Run edge case tests
-pytest -k "normalize"              # Run normalization tests
-```
+Run the Locust profile against a live API. It requires the labeled dataset paths described in tests/load/locustfile.py:
 
-## CI/CD Integration
+    uv run locust -f tests/load/locustfile.py --host=http://localhost:7860
 
-Tests run automatically on every push and pull request via GitHub Actions.
-
-See `.github/workflows/ci.yml` for the full configuration.
-
-## Troubleshooting
-
-**Import errors**: Run from project root
-```bash
-cd /Users/ryanznie/Desktop/work/invoice-ner
-pytest
-```
-
-**Model loading**: Tests mock the model by default
-
-For more details, see `tests/README.md`
+See [Monitoring](../monitoring/README.md) for saved load-test and offline-evaluation commands.

@@ -1,6 +1,11 @@
 {
   "model_name": "layoutlmv3_invoice_ner",
   "base_model": "microsoft/layoutlmv3-base",
+  "base_model_revision": "cfbbbff0762e6aab37086fdd4739ad14fe7d5db4",
+  "adapter_repository": "ryanznie/layoutlmv3-lora-invoice-number",
+  "adapter_revision": "7dc28f5a3b14aa100ba432ee1b0a6cac6c7b2c5c",
+  "adapter_sha256": "cd7d75d79d9a8d7778a799e8cff16c0678480060a2abbaba200ffb701865b8e3",
+  "onnx_sha256": "fff762ae2eb7976f33137fdef64a9cc04c6cbbbe712a3fb0ae39f298fb8386dc",
   "num_labels": 3,
   "max_length": 512,
   "onnx_opset_version": 17,

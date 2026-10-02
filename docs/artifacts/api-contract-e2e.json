@@ -1,0 +1,208 @@
+{
+  "schema_version": 1,
+  "suite": "invoice-api-contract-e2e",
+  "result": "passed",
+  "limits": {
+    "max_image_bytes": 10485760,
+    "max_ocr_bytes": 2097152
+  },
+  "cases": [
+    {
+      "name": "readiness_unavailable",
+      "passed": true,
+      "expected_status": 204,
+      "actual_status": 204,
+      "response": null
+    },
+    {
+      "name": "prediction_before_ready",
+      "passed": true,
+      "expected_status": 503,
+      "actual_status": 503,
+      "response": {
+        "detail": "Model not loaded"
+      }
+    },
+    {
+      "name": "readiness_available",
+      "passed": true,
+      "expected_status": 200,
+      "actual_status": 200,
+      "response": {
+        "status": "healthy"
+      }
+    },
+    {
+      "name": "image_at_limit",
+      "passed": true,
+      "expected_status": 200,
+      "actual_status": 200,
+      "response": {
+        "invoice_number": "INV-12345",
+        "extraction_method": "heuristic",
+        "predictions": [
+          {
+            "word": "INVOICE",
+            "label": "LABEL_0",
+            "is_invoice_number": false
+          },
+          {
+            "word": "NO",
+            "label": "LABEL_0",
+            "is_invoice_number": false
+          },
+          {
+            "word": "INV-12345",
+            "label": "HEURISTIC_MATCH",
+            "is_invoice_number": true
+          }
+        ],
+        "total_words": 3,
+        "model_device": "cpu"
+      },
+      "bytes": 10485760
+    },
+    {
+      "name": "image_over_limit",
+      "passed": true,
+      "expected_status": 413,
+      "actual_status": 413,
+      "response": {
+        "detail": "Image exceeds the 10 MB limit"
+      },
+      "bytes": 10485761
+    },
+    {
+      "name": "ocr_at_limit",
+      "passed": true,
+      "expected_status": 200,
+      "actual_status": 200,
+      "response": {
+        "invoice_number": "INV-12345",
+        "extraction_method": "heuristic",
+        "predictions": [
+          {
+            "word": "INVOICE",
+            "label": "LABEL_0",
+            "is_invoice_number": false
+          },
+          {
+            "word": "NO",
+            "label": "LABEL_0",
+            "is_invoice_number": false
+          },
+          {
+            "word": "INV-12345",
+            "label": "HEURISTIC_MATCH",
+            "is_invoice_number": true
+          }
+        ],
+        "total_words": 3,
+        "model_device": "cpu"
+      },
+      "bytes": 2097152
+    },
+    {
+      "name": "ocr_over_limit",
+      "passed": true,
+      "expected_status": 413,
+      "actual_status": 413,
+      "response": {
+        "detail": "OCR file exceeds the 2 MB limit"
+      },
+      "bytes": 2097153
+    },
+    {
+      "name": "invalid_image",
+      "passed": true,
+      "expected_status": 400,
+      "actual_status": 400,
+      "response": {
+        "detail_prefix": "Invalid image file:"
+      }
+    },
+    {
+      "name": "malformed_ocr_json",
+      "passed": true,
+      "expected_status": 400,
+      "actual_status": 400,
+      "response": {
+        "detail_prefix": "Invalid JSON file:"
+      }
+    },
+    {
+      "name": "empty_ocr_content",
+      "passed": true,
+      "expected_status": 400,
+      "actual_status": 400,
+      "response": {
+        "detail": "OCR file must contain valid words and bboxes"
+      }
+    },
+    {
+      "name": "unsupported_ocr_extension",
+      "passed": true,
+      "expected_status": 400,
+      "actual_status": 400,
+      "response": {
+        "detail": "OCR file must be .txt or .json format"
+      }
+    },
+    {
+      "name": "openrouter_missing_api_key",
+      "passed": true,
+      "expected_status": 503,
+      "actual_status": 503,
+      "response": {
+        "detail": "OPENROUTER_API_KEY is required when OpenRouter fallback is needed. Add it to the service environment."
+      },
+      "hosted_requests": 0
+    },
+    {
+      "name": "openrouter_invalid_settings",
+      "passed": true,
+      "expected_status": 503,
+      "actual_status": 503,
+      "response": {
+        "detail": "OPENROUTER_MAX_TOKENS must be an integer to use OpenRouter fallback."
+      },
+      "hosted_requests": 0
+    },
+    {
+      "name": "openrouter_fallback_success",
+      "passed": true,
+      "expected_status": 200,
+      "actual_status": 200,
+      "response": {
+        "invoice_number": "FALLBACK-42",
+        "extraction_method": "model",
+        "predictions": [
+          {
+            "word": "REFERENCE",
+            "label": "LABEL_0",
+            "is_invoice_number": false
+          },
+          {
+            "word": "ABC12345",
+            "label": "LABEL_0",
+            "is_invoice_number": false
+          }
+        ],
+        "total_words": 2,
+        "model_device": "cpu"
+      },
+      "fallback_calls": 1
+    },
+    {
+      "name": "openrouter_fallback_failure",
+      "passed": true,
+      "expected_status": 500,
+      "actual_status": 500,
+      "response": {
+        "detail": "Internal server error"
+      },
+      "fallback_calls": 1
+    }
+  ],
+  "repeat": "uv run pytest --no-cov tests/e2e/test_api_contract.py -q"
+}
