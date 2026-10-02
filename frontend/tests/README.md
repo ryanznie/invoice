@@ -10,14 +10,13 @@ Also check keyboard-accessible controls, mobile overflow, copy, reset, and zoom.
 Server-side invalid-upload checks hit the real Next.js route without submitting jobs.
 
 Set the same `DEMO_PASSWORD` (at least 32 characters) in both terminal sessions.
-Build and start the app, then run with Playwright installed in a separate tools directory:
+Run `npm ci` to install the pinned Playwright dependency, then build and start the app:
 
 ```sh
 npm run build
 npm run start -- --port 3100
-# In another terminal (npm install --prefix /tmp/receipt-test-tools playwright):
-PLAYWRIGHT_MODULE=/tmp/receipt-test-tools/node_modules/playwright \
-  node tests/receipt-review.mjs
+# In another terminal:
+node tests/receipt-review.mjs
 ```
 
 The script uses installed Google Chrome on macOS by default. Set `CHROME_PATH` for

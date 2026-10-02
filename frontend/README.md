@@ -44,7 +44,10 @@ Set `INVOICE_NER_API_URL` to the local FastAPI backend URL. The browser talks to
 
 Recommended setup:
 
-- Frontend project name: `invoice-ner-ui`
+- Canonical Vercel project: `invoice`, Root Directory `frontend`, production branch `main`.
+- Leave the custom Ignored Build Step empty so PR previews and production builds run.
+- Configure server-only variables for both Preview and Production.
+- See [release and rollback workflow](../docs/RELEASES.md).
 - The production proxy submits a Runpod Serverless job and polls it to completion, so scale-to-zero cold starts do not expose the Runpod key to the browser.
 
 ## Invoice review
