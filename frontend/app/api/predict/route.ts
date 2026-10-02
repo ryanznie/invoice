@@ -105,7 +105,13 @@ export async function POST(request: Request) {
       method: "POST", body: form, cache: "no-store", signal: AbortSignal.any([request.signal, AbortSignal.timeout(240_000)]),
     });
     const data = await response.json();
-    if (!response.ok) return error("Invoice processing failed. Please check the files and try again.", response.status);
+    if (!response.ok) {
+      // Preserve actionable upload errors, but do not expose internal server errors.
+      const detail = response.status >= 400 && response.status < 500 && typeof data?.detail === "string" && data.detail.trim()
+        ? data.detail
+        : "Invoice processing failed. Please check the files and try again.";
+      return error(detail, response.status);
+    }
     if (!isResult(data)) return error("The inference service returned an incomplete result.", 502);
     return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
   } catch { return error("Unable to reach the inference backend.", 502); }

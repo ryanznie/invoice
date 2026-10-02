@@ -2,7 +2,7 @@ export async function validateOcr(file: File): Promise<string | null> {
   let text: string;
   try { text = new TextDecoder("utf-8", { fatal: true }).decode(await file.arrayBuffer()); }
   catch { return "The OCR file must contain valid UTF-8 text."; }
-  const coordinate = (n: unknown): n is number => typeof n === "number" && Number.isSafeInteger(n) && n >= 0;
+  const coordinate = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n) && n >= 0;
   if (file.name.toLowerCase().endsWith(".json")) {
     let data;
     try { data = JSON.parse(text); } catch { return "The OCR file contains invalid JSON."; }
@@ -22,12 +22,18 @@ export async function validateOcr(file: File): Promise<string | null> {
   } else {
     const lines = text.split(/\r?\n/).filter((line) => line.trim());
     if (!lines.length) return "The OCR file contains no text lines.";
+    let usableLines = 0;
     for (const line of lines) {
       const parts = line.split(",");
-      if (parts.length < 9 || !parts.slice(0, 8).every((part) => /^\d+$/.test(part.trim()) && coordinate(Number(part))) || !parts.slice(8).join(",").trim()) {
-        return "Each OCR TXT line needs eight non-negative integer coordinates followed by text.";
+      // Match parse_ocr_text_file: short lines are ignored, not fatal.
+      if (parts.length < 9) continue;
+      if (!parts.slice(0, 8).every((part) => /^[+-]?\d+$/.test(part.trim()) && Number.isSafeInteger(Number(part)))) {
+        return "OCR TXT coordinates must be integers.";
       }
+      if (!parts.slice(8).join(",").trim()) continue;
+      usableLines++;
     }
+    if (!usableLines) return "The OCR file contains no usable text and coordinate lines.";
   }
   return null;
 }

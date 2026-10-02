@@ -44,3 +44,11 @@ and a local HTTP stand-in for Runpod (no paid requests):
 `node tests/proxy-integration.mjs` starts the production server and a local Runpod
 stand-in, then saves its report to `/tmp/invoice-proxy-artifacts/report.json`.
 Run `npm run build` first. No real credentials are required.
+
+### OCR compatibility and local backend errors
+
+Regression cases: fractional JSON coordinates and TXT files containing skipped
+short/empty-text lines must reach inference unchanged. Files with no usable OCR
+or invalid numeric rows must still fail before submission. Local backend 4xx
+string details must reach the user; structured validation responses need a usable
+fallback, and internal 5xx details must not be exposed.

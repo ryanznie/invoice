@@ -15,6 +15,11 @@ let workers={idle:1,running:0,initializing:0,ready:1};
 const upstream=createServer(async(req,res)=>{
   const chunks=[];for await(const c of req) chunks.push(c);
   const send=(status,data)=>{res.writeHead(status,{'Content-Type':'application/json'});res.end(JSON.stringify(data));};
+  if(req.url==='/predict') {
+    if(mode==='local-invalid-image') return send(400,{detail:'Invalid image file: cannot identify image file'});
+    if(mode==='local-validation') return send(422,{detail:[{msg:'Field required'}]});
+    return send(500,{detail:'Internal server error: private configuration'});
+  }
   if(req.url.endsWith('/health')) return send(200,{workers});
   if(req.url.endsWith('/run')) {
     submitted++; const payload=JSON.parse(Buffer.concat(chunks)); lastInput=payload.input; assert(payload.policy.executionTimeout>=5000); assert(payload.policy.ttl>=10000); polls=0;
@@ -51,12 +56,12 @@ try {
  for(let i=0;i<100;i++){try{await fetch(base);break;}catch{await sleep(100);}}
  await check('Page and API reject unauthenticated requests before paid work',async()=>{assert.equal((await fetch(base)).status,401);assert.equal((await post(form(),{headers:{}})).status,401);assert.equal(submitted,0);});
  await check('Incorrect password and cross-origin requests rejected',async()=>{assert.equal((await post(form(),{headers:{authorization:'Basic ZGVtbzpiYWQ='}})).status,401);assert.equal((await post(form(),{headers:{...headers,origin:'https://other.example'}})).status,403);assert.equal(submitted,0);});
- const invalid=[['bad JSON','{'],['unequal arrays',JSON.stringify({words:['x'],bboxes:[]})],['invalid box',JSON.stringify({words:['x'],bboxes:[[9,0,1,5]]})],['non-numeric box',JSON.stringify({words:['x'],bboxes:[[0,0,'10',10]]})],['empty word',JSON.stringify({words:[''],bboxes:[[0,0,10,10]]})],['invalid lines',JSON.stringify({words:['x'],bboxes:[[0,0,10,10]],ocr_lines:[3]})],['bad TXT','bad line','receipt.txt'],['mixed TXT','0,0,10,0,10,10,0,10,Hello\nbad','receipt.txt'],['invalid UTF-8',Buffer.from([0xff])]];
+ const invalid=[['bad JSON','{'],['unequal arrays',JSON.stringify({words:['x'],bboxes:[]})],['invalid box',JSON.stringify({words:['x'],bboxes:[[9,0,1,5]]})],['non-numeric box',JSON.stringify({words:['x'],bboxes:[[0,0,'10',10]]})],['empty word',JSON.stringify({words:[''],bboxes:[[0,0,10,10]]})],['invalid lines',JSON.stringify({words:['x'],bboxes:[[0,0,10,10]],ocr_lines:[3]})],['bad TXT','bad line','receipt.txt'],['invalid numeric TXT','0,0,10,0,10,10,0,10,Hello\nno,0,10,0,10,10,0,10,broken','receipt.txt'],['empty-text TXT','0,0,10,0,10,10,0,10,','receipt.txt'],['invalid UTF-8',Buffer.from([0xff])]];
  for(const [name,text,file] of invalid) await check(`Reject ${name} before submission`,async()=>{const n=submitted;assert.equal((await post(form(text,file))).status,400);assert.equal(submitted,n);});
  await check('Streamed request size is bounded before parsing',async()=>{const n=submitted;const response=await new Promise((resolve,reject)=>{const req=httpRequest(`${base}/api/predict`,{method:'POST',headers:{...headers,'content-type':'multipart/form-data; boundary=test','transfer-encoding':'chunked'}},res=>{res.resume();res.on('end',()=>resolve(res.statusCode));});req.on('error',reject);req.end(Buffer.alloc(4_100_000));});assert.equal(response,413);assert.equal(submitted,n);});
  await check('Reject malformed multipart',async()=>{assert.equal((await post('not multipart')).status,400);});
  await check('Reject oversized OCR',async()=>{assert.equal((await post(form('x'.repeat(2_000_001)))).status,400);});
- for(const [name,text,file] of [['JSON',JSON.stringify({words:['INV-1042'],bboxes:[[0,0,10,10]]})],['boxes alias',JSON.stringify({words:['INV-1042'],boxes:[[0,0,10,10]]})],['TXT','0,0,10,0,10,10,0,10,INV-1042','receipt.txt']]) await check(`Full submission and polling with ${name}`,async()=>{mode='success';const response=await post(form(text,file));assert.equal(response.status,200);assert.deepEqual(await response.json(),result);assert.equal(Buffer.from(lastInput.ocr_base64,'base64').toString(),text);assert.equal(lastInput.image_base64,image.toString('base64'));});
+ for(const [name,text,file] of [['JSON',JSON.stringify({words:['INV-1042'],bboxes:[[0,0,10,10]]})],['fractional JSON',JSON.stringify({words:['INV-1042'],bboxes:[[0.5,1.5,10.25,10.75]]})],['TXT with short lines','Header\n0,0,10,0,10,10,0,10,INV-1042\nfooter','receipt.txt'],['TXT with empty text','0,0,10,0,10,10,0,10,\n0,0,10,0,10,10,0,10,INV-1042','receipt.txt'],['boxes alias',JSON.stringify({words:['INV-1042'],boxes:[[0,0,10,10]]})],['TXT','0,0,10,0,10,10,0,10,INV-1042','receipt.txt']]) await check(`Full submission and polling with ${name}`,async()=>{mode='success';const response=await post(form(text,file));assert.equal(response.status,200);assert.deepEqual(await response.json(),result);assert.equal(Buffer.from(lastInput.ocr_base64,'base64').toString(),text);assert.equal(lastInput.image_base64,image.toString('base64'));});
  for(const scenario of ['submit-failure','bad-submit','FAILED','CANCELLED','TIMED_OUT','bad-output']) await check(`Handles ${scenario}`,async()=>{mode=scenario;assert.equal((await post()).status,502);});
  for(const scenario of ['poll-failure','bad-json','timeout']) await check(`Cancels outstanding job on ${scenario}`,async()=>{mode=scenario;const before=cancelled;const response=await post();assert.equal(response.status,scenario==='timeout'?504:502);assert.equal(cancelled,before+1);});
  await check('Cancellation failure warns against duplicate retry',async()=>{mode='cancel-failure';const response=await post();assert.equal(response.status,504);assert.match((await response.json()).detail,/could not confirm cancellation/i);});
@@ -67,6 +72,14 @@ try {
    const unconfigured=spawn(process.execPath,['node_modules/next/dist/bin/next','start','--port',String(p)],{env:{...process.env,DEMO_PASSWORD:''},stdio:'ignore'});
    try {let response;for(let i=0;i<100;i++){try{response=await fetch(`http://127.0.0.1:${p}`);break;}catch{await sleep(100);}}assert.equal(response.status,503);}finally{unconfigured.kill('SIGTERM');}
  });
+ const localReserve=createServer();await new Promise(r=>localReserve.listen(0,'127.0.0.1',r));const localPort=localReserve.address().port;await new Promise(r=>localReserve.close(r));
+ const localApp=spawn(process.execPath,['node_modules/next/dist/bin/next','start','--port',String(localPort)],{env:{...process.env,DEMO_PASSWORD:password,RUNPOD_ENDPOINT_ID:'',RUNPOD_API_KEY:'',INVOICE_NER_API_URL:`http://127.0.0.1:${upstreamPort}`},stdio:'ignore'});
+ try {
+  for(let i=0;i<100;i++){try{await fetch(`http://127.0.0.1:${localPort}`);break;}catch{await sleep(100);}}
+  for(const [scenario,status] of [['local-invalid-image',400],['local-validation',422],['local-internal-error',500]]) {
+   await check(`Local proxy handles ${scenario}`,async()=>{mode=scenario;const r=await fetch(`http://127.0.0.1:${localPort}/api/predict`,{method:'POST',headers,body:form()});assert.equal(r.status,status);const data=await r.json();if(status===400)assert.equal(data.detail,'Invalid image file: cannot identify image file');else{assert.equal(typeof data.detail,'string');assert(data.detail.length>0);assert(!data.detail.includes('private configuration'));}});
+  }
+ } finally {localApp.kill('SIGTERM');}
  report.status='passed';
 } catch(error){report.status='failed';report.error=String(error.stack);process.exitCode=1;}
 finally {app.kill('SIGTERM');upstream.closeAllConnections();await new Promise(resolve=>upstream.close(resolve));await writeFile(`${artifacts}/report.json`,JSON.stringify(report,null,2));await writeFile(`${artifacts}/server.log`,logs);console.log(JSON.stringify(report,null,2));}
