@@ -18,7 +18,8 @@ Set `INVOICE_NER_API_URL` to the local FastAPI backend URL. The browser talks to
 1. Import this repository in Vercel.
 2. Set the project Root Directory to `frontend`.
 3. Add `RUNPOD_ENDPOINT_ID` and `RUNPOD_API_KEY` in Vercel environment variables. Keep both server-only; never prefix them with `NEXT_PUBLIC_`.
-4. Deploy.
+4. Set `DEMO_PASSWORD` to a randomly generated password of at least 32 characters.
+5. Deploy. Sign in with username `demo` and that password when the browser prompts.
 
 Recommended setup:
 
@@ -51,3 +52,31 @@ Run `npm run lint` and `npm run build`. See [browser verification](tests/README.
 for the repeatable Chromium checks and screenshot/report artifacts. Prediction
 responses in these checks are simulated; verify a real receipt against your
 configured inference endpoint after deployment.
+
+## Demo access and job lifecycle
+
+Production builds require `DEMO_PASSWORD` (32+ characters), including when running
+`npm run start` locally. Requests fail closed with 503 if it is missing or too short.
+Only local development without Runpod credentials may omit it. Page and API access
+use HTTP Basic authentication; use HTTPS outside localhost, keep the password
+server-only, and share it only with trusted demo participants. This is a private
+demo gate, not per-user accounts or a distributed rate limiter. Configure Vercel
+Firewall rate limits and Runpod spending/worker limits before broader distribution.
+Cross-origin browser submissions are rejected.
+
+OCR is decoded as strict UTF-8 and validated before inference. JSON requires
+nonempty string words and one ordered, four-integer, nonnegative box per word;
+`boxes` is accepted as an alias for `bboxes`. Optional `ocr_lines` must be strings.
+TXT requires eight integer coordinates followed by text on every nonblank line.
+Both declared request length and streamed multipart size are bounded.
+
+The proxy validates successful inference output, bounds upstream calls, and
+cancels known outstanding jobs on polling failure, timeout, or client disconnect.
+Cancellation uses an independent timeout. An unconfirmed submission/cancellation
+asks users to contact the owner before retrying rather than silently resubmitting.
+A Runpod job policy bounds its TTL and execution if the proxy is interrupted before
+it receives a job ID. `INVOICE_PROCESSING_TIMEOUT_MS` can shorten the default
+240-second deadline (minimum 1 second; maximum 240 seconds).
+
+Runpod health returns a `ready` boolean and `ready`, `busy`, `initializing`, `idle`,
+or `unknown` status instead of declaring every reachable endpoint ready.

@@ -6,7 +6,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const dir = process.env.ARTIFACT_DIR || '/tmp/receipt-review-artifacts';
 await mkdir(dir, { recursive: true });
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH ?? (process.platform === 'darwin' ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : undefined), headless: true });
-const page = await browser.newPage({ viewport: { width: 1440, height: 1050 } });
+const page = await browser.newPage({ viewport: { width: 1440, height: 1050 }, httpCredentials: process.env.DEMO_PASSWORD ? {username:'demo',password:process.env.DEMO_PASSWORD} : undefined });
 const report = { started: new Date().toISOString(), checks: [], errors: [] };
 page.on('pageerror', error => report.errors.push(error.message));
 const check = async (name, action) => { await action(); report.checks.push(name); };

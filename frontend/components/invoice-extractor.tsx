@@ -4,17 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, CheckCircle2, Copy, FileText, ImagePlus, LoaderCircle, ReceiptText, RotateCcw, ScanLine, ZoomIn, ZoomOut } from "lucide-react";
 import { validateUploads } from "@/lib/upload";
 
-type Prediction = { word: string; label: string; is_invoice_number: boolean };
-type Result = { invoice_number: string; extraction_method: string; predictions: Prediction[]; total_words: number };
-
-function isResult(value: unknown): value is Result {
-  if (!value || typeof value !== "object") return false;
-  const data = value as Result;
-  return typeof data.invoice_number === "string" && typeof data.extraction_method === "string" &&
-    typeof data.total_words === "number" && Array.isArray(data.predictions) && data.predictions.every(
-      (item) => item && typeof item.word === "string" && typeof item.label === "string" && typeof item.is_invoice_number === "boolean",
-    );
-}
+import { isResult, type Result } from "@/lib/result";
 
 export function InvoiceExtractor() {
   const [image, setImage] = useState<File | null>(null);

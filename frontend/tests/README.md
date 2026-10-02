@@ -9,6 +9,7 @@ matches, stale results after changing files, and review status after editing.
 Also check keyboard-accessible controls, mobile overflow, copy, reset, and zoom.
 Server-side invalid-upload checks hit the real Next.js route without submitting jobs.
 
+Set the same `DEMO_PASSWORD` (at least 32 characters) in both terminal sessions.
 Build and start the app, then run with Playwright installed in a separate tools directory:
 
 ```sh
@@ -23,3 +24,23 @@ The script uses installed Google Chrome on macOS by default. Set `CHROME_PATH` f
 another platform or leave it empty to use Playwright's installed Chromium.
 `BASE_URL` defaults to http://localhost:3100. `ARTIFACT_DIR` defaults to
 `/tmp/receipt-review-artifacts`. Every run writes a JSON report and screenshots.
+
+## Proxy integration failure matrix
+
+Before changing the proxy, cover these failures through the built Next.js server
+and a local HTTP stand-in for Runpod (no paid requests):
+
+- Missing/incorrect demo credentials and absent production password must never
+  reach inference; cross-origin browser POSTs must be rejected.
+- Malformed multipart, oversized requests, invalid UTF-8/JSON, unequal word/box
+  counts, invalid coordinates, and malformed TXT lines must fail before submission.
+- Valid JSON (including the `boxes` alias) and TXT must preserve the upload payload.
+- Submission rejection, malformed responses, terminal failures, and malformed
+  successful output must yield errors, not successful extraction.
+- Poll deadline, polling errors, and client disconnection must trigger cancellation
+  for a known outstanding job; cancellation failure must be surfaced honestly.
+- Health must distinguish ready, busy, initializing, and zero-worker states.
+
+`node tests/proxy-integration.mjs` starts the production server and a local Runpod
+stand-in, then saves its report to `/tmp/invoice-proxy-artifacts/report.json`.
+Run `npm run build` first. No real credentials are required.
