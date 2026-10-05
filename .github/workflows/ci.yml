@@ -97,3 +97,48 @@ jobs:
       run: |
         source .venv/bin/activate
         ruff check src/demo.py src/runpod_handler.py scripts/*.py tests/*.py tests/e2e/*.py
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+      - name: Verify proxy integration
+        run: node tests/proxy-integration.mjs
+        env:
+          ARTIFACT_DIR: ${{ runner.temp }}/frontend-artifacts/proxy
+      - run: npx playwright install --with-deps chromium
+      - name: Verify receipt review in Chromium
+        env:
+          DEMO_PASSWORD: ci-only-demo-password-at-least-32-characters
+          BASE_URL: http://localhost:3100
+          ARTIFACT_DIR: ${{ runner.temp }}/frontend-artifacts/browser
+        run: |
+          mkdir -p "$ARTIFACT_DIR"
+          npm run start -- --port 3100 > "$ARTIFACT_DIR/server.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 60); do
+            if curl --silent --output /dev/null "$BASE_URL"; then break; fi
+            sleep 1
+          done
+          node tests/receipt-review.mjs
+      - name: Upload frontend verification artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: frontend-verification
+          path: ${{ runner.temp }}/frontend-artifacts
+          if-no-files-found: error
+          retention-days: 30
