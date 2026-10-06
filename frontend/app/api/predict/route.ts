@@ -8,6 +8,11 @@ import { isResult } from "@/lib/result";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 const terminal = new Set(["COMPLETED", "FAILED", "CANCELLED", "TIMED_OUT"]);
+function processingTimeoutMs() {
+  const configured = Number(process.env.INVOICE_PROCESSING_TIMEOUT_MS ?? 240_000);
+  return Number.isFinite(configured) ? Math.min(240_000, Math.max(1000, configured)) : 240_000;
+}
+
 function error(detail: string, status: number) {
   return NextResponse.json({ detail }, { status, headers: { "Cache-Control": "no-store" } });
 }
@@ -17,8 +22,7 @@ async function callRunpod(form: FormData, request: Request) {
   const ocr = form.get("ocr_file") as File;
   const base = `${process.env.RUNPOD_INVOKE_BASE_URL ?? "https://api.runpod.ai/v2"}/${process.env.RUNPOD_ENDPOINT_ID}`;
   const headers = { Authorization: `Bearer ${process.env.RUNPOD_API_KEY}`, "Content-Type": "application/json" };
-  const configuredTimeout = Number(process.env.INVOICE_PROCESSING_TIMEOUT_MS ?? 240_000);
-  const timeout = Number.isFinite(configuredTimeout) ? Math.min(240_000, Math.max(1000, configuredTimeout)) : 240_000;
+  const timeout = processingTimeoutMs();
   const deadline = AbortSignal.timeout(timeout);
   const signal = AbortSignal.any([deadline, request.signal]);
   let jobId: string | undefined;
@@ -100,9 +104,10 @@ export async function POST(request: Request) {
   if (validation) return error(validation, 400);
   if (process.env.RUNPOD_ENDPOINT_ID && process.env.RUNPOD_API_KEY) return callRunpod(form, request);
   if (!process.env.INVOICE_NER_API_URL) return error("No inference backend is configured.", 503);
+  const deadline = AbortSignal.timeout(processingTimeoutMs());
   try {
     const response = await fetch(`${process.env.INVOICE_NER_API_URL}/predict`, {
-      method: "POST", body: form, cache: "no-store", signal: AbortSignal.any([request.signal, AbortSignal.timeout(240_000)]),
+      method: "POST", body: form, cache: "no-store", signal: AbortSignal.any([request.signal, deadline]),
     });
     const data = await response.json();
     if (!response.ok) {
@@ -114,5 +119,9 @@ export async function POST(request: Request) {
     }
     if (!isResult(data)) return error("The inference service returned an incomplete result.", 502);
     return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
-  } catch { return error("Unable to reach the inference backend.", 502); }
+  } catch {
+    return deadline.aborted || request.signal.aborted
+      ? error("Invoice processing timed out or was interrupted.", 504)
+      : error("Unable to reach the inference backend.", 502);
+  }
 }

@@ -16,6 +16,7 @@ const upstream=createServer(async(req,res)=>{
   const chunks=[];for await(const c of req) chunks.push(c);
   const send=(status,data)=>{res.writeHead(status,{'Content-Type':'application/json'});res.end(JSON.stringify(data));};
   if(req.url==='/predict') {
+    if(mode==='local-timeout') { await sleep(2000); return send(200,result); }
     if(mode==='local-invalid-image') return send(400,{detail:'Invalid image file: cannot identify image file'});
     if(mode==='local-validation') return send(422,{detail:[{msg:'Field required'}]});
     return send(500,{detail:'Internal server error: private configuration'});
@@ -73,12 +74,13 @@ try {
    try {let response;for(let i=0;i<100;i++){try{response=await fetch(`http://127.0.0.1:${p}`);break;}catch{await sleep(100);}}assert.equal(response.status,503);}finally{unconfigured.kill('SIGTERM');}
  });
  const localReserve=createServer();await new Promise(r=>localReserve.listen(0,'127.0.0.1',r));const localPort=localReserve.address().port;await new Promise(r=>localReserve.close(r));
- const localApp=spawn(process.execPath,['node_modules/next/dist/bin/next','start','--port',String(localPort)],{env:{...process.env,DEMO_PASSWORD:password,RUNPOD_ENDPOINT_ID:'',RUNPOD_API_KEY:'',INVOICE_NER_API_URL:`http://127.0.0.1:${upstreamPort}`},stdio:'ignore'});
+ const localApp=spawn(process.execPath,['node_modules/next/dist/bin/next','start','--port',String(localPort)],{env:{...process.env,DEMO_PASSWORD:password,RUNPOD_ENDPOINT_ID:'',RUNPOD_API_KEY:'',INVOICE_NER_API_URL:`http://127.0.0.1:${upstreamPort}`,INVOICE_PROCESSING_TIMEOUT_MS:'1000'},stdio:'ignore'});
  try {
   for(let i=0;i<100;i++){try{await fetch(`http://127.0.0.1:${localPort}`);break;}catch{await sleep(100);}}
   for(const [scenario,status] of [['local-invalid-image',400],['local-validation',422],['local-internal-error',500]]) {
    await check(`Local proxy handles ${scenario}`,async()=>{mode=scenario;const r=await fetch(`http://127.0.0.1:${localPort}/api/predict`,{method:'POST',headers,body:form()});assert.equal(r.status,status);const data=await r.json();if(status===400)assert.equal(data.detail,'Invalid image file: cannot identify image file');else{assert.equal(typeof data.detail,'string');assert(data.detail.length>0);assert(!data.detail.includes('private configuration'));}});
   }
+  await check('Local proxy honors the configured processing deadline',async()=>{mode='local-timeout';const started=Date.now();const response=await fetch(`http://127.0.0.1:${localPort}/api/predict`,{method:'POST',headers,body:form()});assert.equal(response.status,504);assert(Date.now()-started<1800);});
  } finally {localApp.kill('SIGTERM');}
  report.status='passed';
 } catch(error){report.status='failed';report.error=String(error.stack);process.exitCode=1;}
