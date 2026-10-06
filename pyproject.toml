@@ -31,6 +31,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+test = [
+    "peft",
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "wandb>=0.16.0",
+]
 dev = [
     "dvc>=3.63.0",
     "ipykernel>=6.30.1",
