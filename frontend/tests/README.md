@@ -29,8 +29,9 @@ another platform or leave it empty to use Playwright's installed Chromium.
 Before changing the proxy, cover these failures through the built Next.js server
 and a local HTTP stand-in for Runpod (no paid requests):
 
-- Missing/incorrect demo credentials and absent production password must never
-  reach inference; cross-origin browser POSTs must be rejected.
+- Preview rejects missing/incorrect demo credentials before inference. Vercel
+  Production serves the page without Basic authentication and rejects cross-origin
+  browser POSTs before inference.
 - Malformed multipart, oversized requests, invalid UTF-8/JSON, unequal word/box
   counts, invalid coordinates, and malformed TXT lines must fail before submission.
 - Valid JSON (including the `boxes` alias) and TXT must preserve the upload payload.
