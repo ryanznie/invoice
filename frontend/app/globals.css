@@ -95,11 +95,19 @@ a.brand:hover { text-decoration: none; }
 .preview-wrap { margin: 20px 24px 0; border: 1px solid #e2e7de; border-radius: 7px; overflow: hidden; }
 .preview-toolbar { padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 10px; }
 .preview-toolbar > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.preview-tools { display: inline-flex; align-items: center; gap: 12px; }
+.match-legend { display: inline-flex; align-items: center; gap: 5px; color: #85504c; white-space: nowrap; }
+.match-legend > span { width: 10px; height: 10px; border: 2px solid #d72f31; background: #d72f3120; border-radius: 2px; }
 .text-button { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #547059; flex-shrink: 0; }
 .text-button:hover:not(:disabled) { text-decoration: underline; }
-.receipt-preview { background-color: #f0f2ec; background-image: radial-gradient(#dce2d6 .7px, transparent .7px); background-size: 9px 9px; height: 350px; padding: 18px; overflow: auto; }
-.receipt-preview img { max-width: 100%; max-height: 100%; margin: auto; object-fit: contain; box-shadow: 0 4px 12px #27352612; }
-.receipt-preview.zoomed img { max-width: none; max-height: none; width: 180%; }
+.receipt-preview { background-color: #f0f2ec; background-image: radial-gradient(#dce2d6 .7px, transparent .7px); background-size: 9px 9px; height: clamp(440px, 62vh, 620px); padding: 20px; overflow: auto; display: flex; align-items: center; justify-content: center; }
+.receipt-image-frame { position: relative; display: inline-block; width: fit-content; max-width: 100%; max-height: 100%; line-height: 0; }
+.receipt-image-frame img { display: block; width: auto; max-width: 100%; max-height: min(55vh, 560px); margin: auto; object-fit: contain; box-shadow: 0 4px 12px #27352612; }
+.receipt-preview.zoomed { display: block; }
+.receipt-preview.zoomed .receipt-image-frame { width: 180%; max-width: none; max-height: none; flex: none; }
+.receipt-preview.zoomed .receipt-image-frame img { width: 100%; max-width: none; max-height: none; }
+.detection-overlay { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.detection-overlay rect { fill: #e332321c; stroke: #d72f31; stroke-width: 2px; vector-effect: non-scaling-stroke; }
 .result-content { padding: 25px; }
 .status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 20px; color: #986d34; background: #fbf4e8; font-size: 9px; white-space: nowrap; }
 .status-dot { width: 5px; height: 5px; background: #c2924d; border-radius: 50%; }

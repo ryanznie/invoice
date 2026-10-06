@@ -56,9 +56,9 @@ The page follows the Gradio demo's image + OCR flow: upload a receipt, extract i
 invoice number, compare the result with the original, correct it if needed, and
 confirm the number or copy it. The interface centers on a source document beside
 extracted data, with explicit review for missing or ambiguous values. Zoom lets users inspect the receipt; expandable
-extraction details show the backend's matched words. No other receipt fields are
-extracted. The current API does not return bounding boxes or an annotated image,
-so the frontend displays the original image rather than inventing highlights.
+extraction details show the backend's matched words. Red boxes mark invoice-number
+words on the source image by aligning the supplied OCR coordinates with the
+backend predictions and accounts for JPEG EXIF orientation. No other receipt fields are extracted.
 
 The backend still requires a matching coordinate-bearing TXT/JSON OCR file;
 image-only extraction needs an OCR service. Edits and review state are local to
