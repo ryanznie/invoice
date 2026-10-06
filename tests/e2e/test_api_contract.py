@@ -51,7 +51,9 @@ class _OpenRouterDouble:
         self.result = result
         self.calls = 0
 
-    def predict(self, *, image: Image.Image, words: list[str]) -> dict[str, Any]:
+    def predict(
+        self, *, image: Image.Image, words: list[str] | None = None
+    ) -> dict[str, Any]:
         del image, words
         self.calls += 1
         return self.result
@@ -69,11 +71,13 @@ def _ocr_json(*, heuristic: bool = True) -> bytes:
     return json.dumps({"words": words, "bboxes": boxes}).encode("utf-8")
 
 
-def _files(image: bytes, ocr: bytes, *, ocr_name: str = "invoice.json") -> dict:
-    return {
-        "image": ("invoice.png", image, "image/png"),
-        "ocr_file": (ocr_name, ocr, "application/octet-stream"),
-    }
+def _files(
+    image: bytes, ocr: bytes | None, *, ocr_name: str = "invoice.json"
+) -> dict:
+    files = {"image": ("invoice.png", image, "image/png")}
+    if ocr is not None:
+        files["ocr_file"] = (ocr_name, ocr, "application/octet-stream")
+    return files
 
 
 def _response_body(response: Any) -> Any:
@@ -189,6 +193,8 @@ def run_contract(output: Path) -> int:
             metadata={"bytes": len(exact_image) + 1},
         )
 
+        image_only_client = _OpenRouterDouble({"invoice_number": "IMAGE-42"})
+        inference.openrouter_client = image_only_client
         exact_ocr = heuristic_ocr + b" " * (MAX_OCR_BYTES - len(heuristic_ocr))
         check(
             "ocr_at_limit",
@@ -198,15 +204,14 @@ def run_contract(output: Path) -> int:
             metadata={"bytes": len(exact_ocr)},
         )
         check(
-            "ocr_over_limit",
+            "ocr_over_limit_uses_image_only",
             client.post(
                 "/predict",
                 files=_files(image, exact_ocr + b" "),
             ),
-            413,
-            expected_detail=(
-                f"OCR file exceeds the {MAX_OCR_BYTES // (1024 * 1024)} MB limit"
-            ),
+            200,
+            expected_invoice="IMAGE-42",
+            condition=image_only_client.calls == 1,
             metadata={"bytes": len(exact_ocr) + 1},
         )
 
@@ -220,25 +225,28 @@ def run_contract(output: Path) -> int:
             expected_detail_prefix="Invalid image file:",
         )
         check(
-            "malformed_ocr_json",
+            "malformed_ocr_json_uses_image_only",
             client.post("/predict", files=_files(image, b"{")),
-            400,
-            expected_detail_prefix="Invalid JSON file:",
+            200,
+            expected_invoice="IMAGE-42",
+            condition=image_only_client.calls == 2,
         )
         check(
-            "empty_ocr_content",
-            client.post("/predict", files=_files(image, b"{}")),
-            400,
-            expected_detail="OCR file must contain valid words and bboxes",
+            "missing_ocr_uses_image_only",
+            client.post("/predict", files=_files(image, None)),
+            200,
+            expected_invoice="IMAGE-42",
+            condition=image_only_client.calls == 3,
         )
         check(
-            "unsupported_ocr_extension",
+            "unsupported_ocr_extension_uses_image_only",
             client.post(
                 "/predict",
                 files=_files(image, heuristic_ocr, ocr_name="invoice.csv"),
             ),
-            400,
-            expected_detail="OCR file must be .txt or .json format",
+            200,
+            expected_invoice="IMAGE-42",
+            condition=image_only_client.calls == 4,
         )
 
         model_ocr = _ocr_json(heuristic=False)
