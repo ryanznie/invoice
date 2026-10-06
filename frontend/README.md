@@ -19,8 +19,8 @@ file is ignored by Git; the setup example lives here instead of a committed
 # Local FastAPI backend (used when Runpod credentials are absent)
 INVOICE_NER_API_URL=http://localhost:7860
 
-# Required for production builds or when Runpod credentials are set.
-# Generate a random password of at least 32 characters; username is demo.
+# For local production/Runpod use and Vercel Preview only; username is demo.
+# Generate a random password of at least 32 characters.
 DEMO_PASSWORD=
 
 # Optional: use Runpod instead of the local backend
@@ -39,14 +39,15 @@ Set `INVOICE_NER_API_URL` to the local FastAPI backend URL. The browser talks to
 1. Import this repository in Vercel.
 2. Set the project Root Directory to `frontend`.
 3. Add `RUNPOD_ENDPOINT_ID` and `RUNPOD_API_KEY` in Vercel environment variables. Keep both server-only; never prefix them with `NEXT_PUBLIC_`.
-4. Set `DEMO_PASSWORD` to a randomly generated password of at least 32 characters.
-5. Deploy. Sign in with username `demo` and that password when the browser prompts.
+4. Set `DEMO_PASSWORD` only for Preview deployments, using a randomly generated password of at least 32 characters.
+5. Deploy. Preview requires username `demo` and that password; Production is publicly accessible without an app password.
 
 Recommended setup:
 
 - Canonical Vercel project: `invoice`, Root Directory `frontend`, production branch `main`.
 - Leave the custom Ignored Build Step empty so PR previews and production builds run.
-- Configure server-only variables for both Preview and Production.
+- Configure inference variables for both Preview and Production; configure `DEMO_PASSWORD` for Preview only.
+- Keep Vercel Authentication enabled for Preview deployments only so the Production URL is public.
 - See [release and rollback workflow](../docs/RELEASES.md).
 - The production proxy submits a Runpod Serverless job and polls it to completion, so scale-to-zero cold starts do not expose the Runpod key to the browser.
 
@@ -79,14 +80,14 @@ configured inference endpoint after deployment.
 
 ## Demo access and job lifecycle
 
-Production builds require `DEMO_PASSWORD` (32+ characters), including when running
-`npm run start` locally. Requests fail closed with 503 if it is missing or too short.
-Only local development without Runpod credentials may omit it. Page and API access
-use HTTP Basic authentication; use HTTPS outside localhost, keep the password
-server-only, and share it only with trusted demo participants. This is a private
-demo gate, not per-user accounts or a distributed rate limiter. Configure Vercel
-Firewall rate limits and Runpod spending/worker limits before broader distribution.
-Cross-origin browser submissions are rejected.
+Vercel Production (`VERCEL_ENV=production`) is publicly accessible and does not
+use `DEMO_PASSWORD`. Preview deployments and locally started production builds
+require a password of at least 32 characters; Preview and local page/API access use
+HTTP Basic authentication. Local development without Vercel or Runpod credentials
+may omit the password. The Production bypass uses Vercel's `VERCEL_ENV`, so a
+local production build still requires `DEMO_PASSWORD`. Keep the Preview password
+server-only. Production still rejects cross-origin browser submissions. Configure
+Vercel Firewall rate limits and Runpod spending/worker limits for public access.
 
 OCR is decoded as strict UTF-8 and validated before inference. JSON requires
 nonempty string words and one ordered, four-number, finite nonnegative box per word (fractional coordinates are accepted);
