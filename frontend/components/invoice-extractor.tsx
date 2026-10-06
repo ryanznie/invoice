@@ -21,6 +21,7 @@ export function InvoiceExtractor() {
   const [copyStatus, setCopyStatus] = useState("");
   const [fileKey, setFileKey] = useState(0);
   const request = useRef<AbortController | null>(null);
+  const submitting = useRef(false);
   const resultHeading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
@@ -37,7 +38,7 @@ export function InvoiceExtractor() {
   }
 
   function chooseImage(file?: File) {
-    if (!file || loading) return;
+    if (!file || submitting.current || loading) return;
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
       setError("Choose a JPG, PNG, or WebP receipt image."); return;
     }
@@ -48,25 +49,27 @@ export function InvoiceExtractor() {
   }
 
   function reset() {
+    if (submitting.current) return;
     clearResult(); setImage(null); setOcrFile(null); setZoomed(false); setFileKey((key) => key + 1);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (loading || !image) return;
+    if (submitting.current || loading || !image) return;
     const validation = validateUploads(image);
     if (validation) { setError(validation); return; }
-    const validOcr = ocrFile && !validateUploads(image, ocrFile) && !(await validateOcr(ocrFile))
-      ? ocrFile
-      : null;
+    submitting.current = true;
     clearResult(); setLoading(true);
     const controller = new AbortController();
     request.current = controller;
     const timeout = window.setTimeout(() => controller.abort(), 270_000);
-    const form = new FormData();
-    form.append("image", image);
-    if (validOcr) form.append("ocr_file", validOcr);
     try {
+      const validOcr = ocrFile && !validateUploads(image, ocrFile) && !(await validateOcr(ocrFile))
+        ? ocrFile
+        : null;
+      const form = new FormData();
+      form.append("image", image);
+      if (validOcr) form.append("ocr_file", validOcr);
       const ocrBoxesPromise: Promise<OcrWordBox[]> = validOcr
         ? readOcrWordBoxes(validOcr, image).catch(() => [])
         : Promise.resolve([]);
@@ -86,7 +89,7 @@ export function InvoiceExtractor() {
     } catch (caught) {
       setError(controller.signal.aborted ? "This is taking longer than expected. Please try again." : caught instanceof Error ? caught.message : "Unable to process the receipt. Please try again.");
     } finally {
-      window.clearTimeout(timeout); request.current = null; setLoading(false);
+      window.clearTimeout(timeout); request.current = null; setLoading(false); submitting.current = false;
     }
   }
 
@@ -127,7 +130,7 @@ export function InvoiceExtractor() {
                       <div className="receipt-image-frame">
                         {/* User-selected local image; must retain its original detail. */}
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={previewUrl} alt="Your uploaded receipt" onError={() => { setImage(null); clearResult(); setError("This image could not be opened. Try a different JPG, PNG, or WebP file."); }} />
+                        <img src={previewUrl} alt="Your uploaded receipt" onError={() => { if (submitting.current) return; setImage(null); clearResult(); setError("This image could not be opened. Try a different JPG, PNG, or WebP file."); }} />
                         {boxedMatches.length > 0 && <svg className="detection-overlay" viewBox="0 0 1000 1000" preserveAspectRatio="none" role="img" aria-label={`${boxedMatches.length} detected invoice number ${boxedMatches.length === 1 ? "word" : "words"} highlighted in red`}>
                           {boxedMatches.map((item, index) => {
                             const [x0, y0, x1, y1] = item.bbox!;
@@ -141,7 +144,7 @@ export function InvoiceExtractor() {
                 <div className="upload-controls">
                   <label className="ocr-label" htmlFor="ocr-file"><FileText size={17} /><span>OCR file</span></label>
                   <p className="help-text" id="ocr-help">Matching TXT or JSON with text coordinates.</p>
-                  <input key={`ocr-${fileKey}`} id="ocr-file" aria-describedby="ocr-help" className="file-input" type="file" accept=".txt,.json" onChange={(event) => { clearResult(); setOcrFile(event.target.files?.[0] ?? null); }} />
+                  <input key={`ocr-${fileKey}`} id="ocr-file" aria-describedby="ocr-help" className="file-input" type="file" accept=".txt,.json" onChange={(event) => { if (submitting.current) return; clearResult(); setOcrFile(event.target.files?.[0] ?? null); }} />
                   <details className="format-help"><summary>Which file do I need?</summary><p>A TXT file with text and corner coordinates, or JSON with <code>words</code> and <code>bboxes</code> (or <code>boxes</code>). Plain text alone won’t work. OCR file: up to 2 MB; both files: up to 4 MB combined.</p></details>
                   {error && <p className="error-message" role="alert">{error}</p>}
                   <button className="primary-button" type="submit" disabled={loading || !image}>{loading ? <><LoaderCircle size={17} className="animate-spin" />Extracting…</> : <>Extract invoice number<ArrowRight size={17} /></>}</button>

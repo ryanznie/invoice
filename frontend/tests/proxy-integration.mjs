@@ -82,6 +82,21 @@ try {
      assert.equal(crossOrigin.status,403);assert.equal(submitted,before);
    } finally {unconfigured.kill('SIGTERM');}
  });
+ await check('Local production build still requires a demo password',async()=>{
+   const reserve=createServer();await new Promise(r=>reserve.listen(0,'127.0.0.1',r));const p=reserve.address().port;await new Promise(r=>reserve.close(r));
+   const localEnv={...process.env,DEMO_PASSWORD:'',RUNPOD_ENDPOINT_ID:'',RUNPOD_API_KEY:'',INVOICE_NER_API_URL:''};delete localEnv.VERCEL_ENV;
+   const localProduction=spawn(process.execPath,['node_modules/next/dist/bin/next','start','--port',String(p)],{env:localEnv,stdio:'ignore'});
+   try {let page;for(let i=0;i<100;i++){try{page=await fetch(`http://127.0.0.1:${p}`);break;}catch{await sleep(100);}}assert.equal(page.status,503);}
+   finally {localProduction.kill('SIGTERM');}
+ });
+ await check('Public Production accepts an unauthenticated image-only submission',async()=>{
+   mode='success';
+   const reserve=createServer();await new Promise(r=>reserve.listen(0,'127.0.0.1',r));const p=reserve.address().port;await new Promise(r=>reserve.close(r));
+   const productionEnv={...process.env,DEMO_PASSWORD:'',VERCEL_ENV:'production',RUNPOD_ENDPOINT_ID:'test',RUNPOD_API_KEY:'integration-only-key',RUNPOD_INVOKE_BASE_URL:`http://127.0.0.1:${upstreamPort}`,INVOICE_NER_API_URL:''};
+   const publicProduction=spawn(process.execPath,['node_modules/next/dist/bin/next','start','--port',String(p)],{env:productionEnv,stdio:'ignore'});
+   try {let page;for(let i=0;i<100;i++){try{page=await fetch(`http://127.0.0.1:${p}`);break;}catch{await sleep(100);}}assert.equal(page.status,200);const before=submitted;const response=await fetch(`http://127.0.0.1:${p}/api/predict`,{method:'POST',body:form(null)});assert.equal(response.status,200);assert.deepEqual(await response.json(),result);assert.equal(submitted,before+1);assert.equal(lastInput.image_base64,image.toString('base64'));assert.equal(lastInput.ocr_base64,undefined);}
+   finally {publicProduction.kill('SIGTERM');}
+ });
  const localReserve=createServer();await new Promise(r=>localReserve.listen(0,'127.0.0.1',r));const localPort=localReserve.address().port;await new Promise(r=>localReserve.close(r));
  const localApp=spawn(process.execPath,['node_modules/next/dist/bin/next','start','--port',String(localPort)],{env:{...process.env,DEMO_PASSWORD:password,RUNPOD_ENDPOINT_ID:'',RUNPOD_API_KEY:'',INVOICE_NER_API_URL:`http://127.0.0.1:${upstreamPort}`,INVOICE_PROCESSING_TIMEOUT_MS:'1000'},stdio:'ignore'});
  try {

@@ -18,9 +18,13 @@ Run the handler tests without loading model files:
 
     PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run pytest -o addopts='' tests/test_runpod_handler.py tests/test_runpod_smoke_script.py
 
-Run real CPU inference locally. The image sample must be present in the downloaded SROIE2019 dataset. To exercise the OCR path, also supply its matching OCR sample:
+The backend smoke script exercises the local CPU pipeline and requires both an image and its matching OCR sample. Keep the image and OCR sample in the downloaded SROIE2019 dataset:
 
     uv run python scripts/smoke_test_runpod_backend.py --image data/SROIE2019/test/img/X00016469670.jpg --ocr data/SROIE2019/test/box/X00016469670.txt --expected PEGIV-1030765
+
+For image-only API inference, start the API with `OPENROUTER_API_KEY` configured, then send only the image. This path sends the invoice image to OpenRouter; it does not exercise local CPU model inference:
+
+    curl -F 'image=@data/SROIE2019/test/img/X00016469670.jpg' http://127.0.0.1:7860/predict
 
 Test the published worker image:
 
