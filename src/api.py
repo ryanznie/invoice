@@ -23,15 +23,15 @@ from pydantic import BaseModel
 
 from . import inference
 from .heuristics import extract_invoice_heuristics
-from .openrouter import OpenRouterConfigurationError
+from .openrouter import OpenRouterAPIKeyError
 from .postprocessing import postprocess_invoice_number
 from .utils import normalize_boxes, parse_ocr_text_file
-from .validation import validate_model_extraction
+from .validation import validate_boxes, validate_model_extraction, validate_words
 
 logger = logging.getLogger(__name__)
 
 IMAGE_FILE = File(..., description="Invoice image file (JPG, PNG, etc.)")
-OCR_FILE = File(..., description="OCR data file (TXT or JSON format)")
+OCR_FILE = File(None, description="OCR data file (TXT or JSON format)")
 MAX_IMAGE_BYTES = int(os.getenv("MAX_IMAGE_BYTES", str(10 * 1024 * 1024)))
 MAX_OCR_BYTES = int(os.getenv("MAX_OCR_BYTES", str(2 * 1024 * 1024)))
 
@@ -147,6 +147,74 @@ async def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
+def _parse_ocr_upload(ocr_file, image_width: int, image_height: int):
+    """Return parsed OCR when valid; otherwise select image-only inference."""
+    if ocr_file is None:
+        return None
+
+    try:
+        ocr_bytes = ocr_file.file.read(MAX_OCR_BYTES + 1)
+        if len(ocr_bytes) > MAX_OCR_BYTES:
+            logger.info("Ignoring OCR file over the configured size limit")
+            return None
+
+        filename = (ocr_file.filename or "").lower()
+        if filename.endswith(".json"):
+            ocr_data = json.loads(ocr_bytes.decode("utf-8"))
+            if not isinstance(ocr_data, dict):
+                return None
+            words = ocr_data.get("words")
+            boxes = ocr_data.get("bboxes", ocr_data.get("boxes"))
+            ocr_lines = ocr_data.get("ocr_lines")
+            needs_normalization = (
+                any(coord > 1000 for box in boxes for coord in box) if boxes else False
+            )
+            if needs_normalization:
+                boxes = normalize_boxes(boxes, image_width, image_height)
+        elif filename.endswith(".txt"):
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".txt", delete=False, encoding="utf-8"
+            ) as tmp:
+                tmp.write(ocr_bytes.decode("utf-8"))
+                tmp_path = tmp.name
+            try:
+                ocr_data = parse_ocr_text_file(tmp_path)
+                words = ocr_data["words"]
+                boxes = normalize_boxes(
+                    ocr_data["bboxes"], image_width, image_height
+                )
+                ocr_lines = ocr_data.get("ocr_lines")
+            finally:
+                os.unlink(tmp_path)
+        else:
+            return None
+
+        if (
+            not isinstance(words, list)
+            or not words
+            or not all(isinstance(word, str) and word.strip() for word in words)
+            or not isinstance(boxes, list)
+            or not boxes
+            or (
+                ocr_lines is not None
+                and (
+                    not isinstance(ocr_lines, list)
+                    or not all(isinstance(line, str) for line in ocr_lines)
+                )
+            )
+        ):
+            return None
+
+        validate_words(words)
+        validate_boxes(boxes, words)
+        return words, boxes, ocr_lines
+    except Exception as exc:
+        logger.info(
+            "Ignoring OCR file that could not be parsed (%s)", type(exc).__name__
+        )
+        return None
+
+
 @app.get("/runtime/config")
 async def runtime_config():
     """Return non-secret runtime model serving configuration."""
@@ -166,10 +234,10 @@ async def runtime_config():
 @app.post("/predict")
 def predict(
     image: UploadFile = IMAGE_FILE,
-    ocr_file: UploadFile = OCR_FILE,
+    ocr_file: UploadFile | None = OCR_FILE,
 ):
     """
-    Extract invoice number from an invoice image and OCR data
+    Extract an invoice number from an image, using valid OCR data when provided.
 
     Args:
         image: Invoice image file
@@ -182,12 +250,6 @@ def predict(
     """
     start_time = time.perf_counter()
     extraction_method = "unknown"
-    if inference.backend is None or inference.processor is None:
-        INFERENCE_ERRORS.labels(method=extraction_method).inc()
-        INFERENCE_REQUESTS.labels(method=extraction_method, status="error").inc()
-        INFERENCE_LATENCY.observe(time.perf_counter() - start_time)
-        raise HTTPException(status_code=503, detail="Model not loaded")
-
     try:
         # Read and validate image
         image_bytes = image.file.read(MAX_IMAGE_BYTES + 1)
@@ -204,70 +266,41 @@ def predict(
 
         img_width, img_height = pil_image.size
 
-        # Read and parse OCR file
-        ocr_bytes = ocr_file.file.read(MAX_OCR_BYTES + 1)
-        if len(ocr_bytes) > MAX_OCR_BYTES:
-            raise HTTPException(
-                status_code=413,
-                detail=f"OCR file exceeds the {MAX_OCR_BYTES // (1024 * 1024)} MB limit",
-            )
-        ocr_filename = (ocr_file.filename or "").lower()
-
-        try:
-            if ocr_filename.endswith(".json"):
-                # Parse JSON file
-                ocr_data = json.loads(ocr_bytes.decode("utf-8"))
-                words = ocr_data.get("words", [])
-                boxes = ocr_data.get("bboxes", ocr_data.get("boxes", []))
-                ocr_lines = ocr_data.get("ocr_lines", None)
-
-                # Check if boxes need normalization
-                needs_normalization = (
-                    any(coord > 1000 for box in boxes for coord in box)
-                    if boxes
-                    else False
+        ocr_data = _parse_ocr_upload(ocr_file, img_width, img_height)
+        if ocr_data is None:
+            extraction_method = "openrouter_image_only"
+            FALLBACK_TOTAL.inc()
+            logger.info("No valid OCR data; using image-only vision inference")
+            try:
+                image_result = inference.predict_invoice_from_image(pil_image)
+            except OpenRouterAPIKeyError:
+                raise
+            except Exception as exc:
+                logger.warning(
+                    "Image-only vision inference failed (%s)", type(exc).__name__
                 )
-                if needs_normalization:
-                    logger.info(
-                        "Detected pixel coordinates in JSON, normalizing to 0-1000 range"
-                    )
-                    boxes = normalize_boxes(boxes, img_width, img_height)
-
-            elif ocr_filename.endswith(".txt"):
-                # Parse text file - save to temp file for parse_ocr_text_file
-                with tempfile.NamedTemporaryFile(
-                    mode="w", suffix=".txt", delete=False, encoding="utf-8"
-                ) as tmp:
-                    tmp.write(ocr_bytes.decode("utf-8", errors="ignore"))
-                    tmp_path = tmp.name
-
-                try:
-                    ocr_data = parse_ocr_text_file(tmp_path)
-                    words = ocr_data["words"]
-                    boxes = ocr_data["bboxes"]
-                    ocr_lines = ocr_data.get("ocr_lines", None)
-
-                    # Normalize boxes to 0-1000 range
-                    boxes = normalize_boxes(boxes, img_width, img_height)
-                finally:
-                    # Clean up temp file
-                    os.unlink(tmp_path)
-            else:
                 raise HTTPException(
-                    status_code=400, detail="OCR file must be .txt or .json format"
-                )
+                    status_code=502, detail="Image-only invoice extraction failed."
+                ) from exc
 
-        except json.JSONDecodeError as e:
-            raise HTTPException(status_code=400, detail=f"Invalid JSON file: {e!s}")
-        except (KeyError, TypeError, UnicodeDecodeError, ValueError, OSError) as e:
-            raise HTTPException(
-                status_code=400, detail=f"Error parsing OCR file: {e!s}"
-            )
+            invoice_number = image_result.get("invoice_number")
+            if invoice_number:
+                invoice_number = postprocess_invoice_number(invoice_number)
+                if not validate_model_extraction(invoice_number):
+                    invoice_number = None
+            INFERENCE_REQUESTS.labels(method=extraction_method, status="success").inc()
+            INFERENCE_LATENCY.observe(time.perf_counter() - start_time)
+            return {
+                "invoice_number": invoice_number or "Not Found",
+                "extraction_method": extraction_method,
+                "predictions": [],
+                "total_words": 0,
+                "model_device": inference.DEVICE,
+            }
 
-        if not words or not boxes:
-            raise HTTPException(
-                status_code=400, detail="OCR file must contain valid words and bboxes"
-            )
+        words, boxes, ocr_lines = ocr_data
+        if inference.backend is None or inference.processor is None:
+            raise HTTPException(status_code=503, detail="Model not loaded")
 
         logger.info("=" * 60)
         logger.info("API: Starting invoice extraction pipeline")
@@ -356,7 +389,7 @@ def predict(
         INFERENCE_REQUESTS.labels(method=extraction_method, status="error").inc()
         INFERENCE_LATENCY.observe(time.perf_counter() - start_time)
         raise
-    except OpenRouterConfigurationError as e:
+    except OpenRouterAPIKeyError as e:
         INFERENCE_ERRORS.labels(method=extraction_method).inc()
         INFERENCE_REQUESTS.labels(method=extraction_method, status="error").inc()
         INFERENCE_LATENCY.observe(time.perf_counter() - start_time)

@@ -35,8 +35,9 @@ infer a backend release solely from the frontend version.
 1. Open a PR to `main`; review the diff and resolve actionable review comments.
 2. Pass Python checks plus frontend typecheck, build, proxy integration, and
    Chromium review checks. CI uploads repeatable reports and screenshots.
-3. Verify the Vercel Preview deployment with a real receipt and its OCR file.
-   Check that unauthenticated requests are rejected and inference succeeds.
+3. Verify the Vercel Preview deployment with a real receipt, both with valid OCR
+   and with the OCR field omitted. Check that unauthenticated requests are rejected
+   and image-only inference succeeds.
 4. Obtain the required approving review and merge without bypassing protection.
 5. Verify the new Production deployment uses the merge commit. Confirm the page
    and inference endpoint work without Basic authentication, cross-origin browser
@@ -58,8 +59,10 @@ using current secrets. Instant Rollback pauses automatic production-domain
 assignment; promote the verified replacement deployment to resume it. Fix forward under a new patch version; retain the old tag
 and document the incident in its release notes.
 
-This is a publicly accessible demo: it requires an image plus coordinate-bearing
-OCR and saves corrections only in the browser session. Unauthenticated visitors can
+This is a publicly accessible demo: it accepts an image and uses valid
+coordinate-bearing OCR when available, falling back to image-only OpenRouter
+vision inference otherwise. That fallback sends the invoice image to OpenRouter.
+Corrections are saved only in the browser session. Unauthenticated visitors can
 submit inference work to Runpod. Before using it as a customer-facing service, add
 per-user authentication, durable review/audit storage, distributed request limits,
 spending alerts, and a documented retention policy. Monitor failed requests,

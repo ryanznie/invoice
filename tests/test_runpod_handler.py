@@ -11,8 +11,8 @@ def test_handler_decodes_files_and_calls_prediction(monkeypatch):
     def fake_predict(*, image, ocr_file):
         captured["image_name"] = image.filename
         captured["image"] = image.file.read()
-        captured["ocr_name"] = ocr_file.filename
-        captured["ocr"] = ocr_file.file.read()
+        captured["ocr_name"] = ocr_file.filename if ocr_file else None
+        captured["ocr"] = ocr_file.file.read() if ocr_file else None
         return {"invoice_number": "INV-42"}
 
     monkeypatch.setattr(runpod_handler, "predict", fake_predict)
@@ -49,14 +49,24 @@ def test_handler_rejects_invalid_base64():
         )
 
 
-def test_handler_rejects_unknown_ocr_extension():
-    with pytest.raises(ValueError, match="must end in .txt or .json"):
-        runpod_handler.handler(
-            {
-                "input": {
-                    "image_base64": base64.b64encode(b"image").decode(),
-                    "ocr_base64": base64.b64encode(b"ocr").decode(),
-                    "ocr_filename": "invoice.csv",
-                }
+def test_handler_ignores_unknown_ocr_extension(monkeypatch):
+    captured = {}
+
+    def fake_predict(*, image, ocr_file):
+        captured["image"] = image.file.read()
+        captured["ocr_file"] = ocr_file
+        return {"invoice_number": "INV-42"}
+
+    monkeypatch.setattr(runpod_handler, "predict", fake_predict)
+    result = runpod_handler.handler(
+        {
+            "input": {
+                "image_base64": base64.b64encode(b"image").decode(),
+                "ocr_base64": base64.b64encode(b"ocr").decode(),
+                "ocr_filename": "invoice.csv",
             }
-        )
+        }
+    )
+
+    assert result == {"invoice_number": "INV-42"}
+    assert captured == {"image": b"image", "ocr_file": None}

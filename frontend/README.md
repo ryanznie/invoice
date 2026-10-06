@@ -61,10 +61,11 @@ extraction details show the backend's matched words. Red boxes mark invoice-numb
 words on the source image by aligning the supplied OCR coordinates with the
 backend predictions and accounts for JPEG EXIF orientation. No other receipt fields are extracted.
 
-The backend still requires a matching coordinate-bearing TXT/JSON OCR file;
-image-only extraction needs an OCR service. Edits and review state are local to
-the page and are cleared on refresh or when files change. They are not saved to
-the backend.
+The backend uses valid coordinate-bearing TXT/JSON OCR when present. If it is
+missing or invalid, the configured OpenRouter vision model extracts directly from
+the image. That path has no OCR word coordinates for red-box highlights and sends
+the image to OpenRouter, so it requires `OPENROUTER_API_KEY`. Edits and review
+state stay in the page and are cleared on refresh or when files change.
 
 Uploads are limited to 4 MB combined (OCR: 2 MB maximum) on both client and proxy,
 leaving room for multipart headers below [Vercel's 4.5 MB request limit](https://vercel.com/docs/functions/limitations#request-body-size).
