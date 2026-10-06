@@ -32,7 +32,7 @@ jobs:
       run: |
         uv venv
         source .venv/bin/activate
-        uv sync --locked --extra dev
+        uv sync --locked --no-default-groups --extra test
     
     - name: Run tests with pytest
       run: |
@@ -86,17 +86,8 @@ jobs:
         curl -LsSf https://astral.sh/uv/install.sh | sh
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
     
-    - name: Install dependencies
-      run: |
-        uv venv
-        source .venv/bin/activate
-        uv sync --locked --extra dev
-        uv pip install ruff==0.5.0
-    
-    - name: Check code formatting with ruff
-      run: |
-        source .venv/bin/activate
-        ruff check src/demo.py src/runpod_handler.py scripts/*.py tests/*.py tests/e2e/*.py
+    - name: Run Ruff
+      run: uvx --from ruff==0.5.0 ruff check src/demo.py src/runpod_handler.py scripts/*.py tests/*.py tests/e2e/*.py
 
   frontend:
     runs-on: ubuntu-latest
