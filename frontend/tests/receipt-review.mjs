@@ -13,12 +13,13 @@ const check = async (name, action) => { await action(); report.checks.push(name)
 const visible = async locator => { await locator.waitFor({ state: 'visible' }); };
 try {
   // A synthetic receipt is the fixture, never a user's document.
-  await page.setContent(`<body style="margin:0;background:white;width:380px;font:18px monospace;color:#333"><div style="padding:40px"><h2 style="text-align:center">NORTHSIDE COFFEE</h2><p style="text-align:center">21 Market Street<br>New York, NY</p><hr><p>Receipt: INV-1042</p><p>30 Sep 2026 · 09:41</p><hr><p>Flat white     $4.50</p><p>Croissant      $3.75</p><br><hr><p>TOTAL          $8.25</p><br><p style="text-align:center">Thank you. See you soon!</p></div></body>`);
+  await page.setContent(`<body style="margin:0;background:white;width:380px;font:18px monospace;color:#333"><div style="padding:40px"><h2 style="text-align:center">NORTHSIDE COFFEE</h2><p style="text-align:center">21 Market Street<br>New York, NY</p><hr><p>Receipt: <span id="invoice-number-token">INV-1042</span></p><p>30 Sep 2026 · 09:41</p><hr><p>Flat white     $4.50</p><p>Croissant      $3.75</p><br><hr><p>TOTAL          $8.25</p><br><p style="text-align:center">Thank you. See you soon!</p></div></body>`);
+  const invoiceBox = await page.locator('#invoice-number-token').evaluate(el => { const token = el.getBoundingClientRect(); const body = document.body.getBoundingClientRect(); const scale = (value, origin, extent) => Math.round((value - origin) * 1000 / extent); return [scale(token.left, body.left, body.width), scale(token.top, body.top, body.height), scale(token.right, body.left, body.width), scale(token.bottom, body.top, body.height)]; });
   const receipt = await page.locator('body').screenshot();
   const image = { name: 'receipt.png', mimeType: 'image/png', buffer: receipt };
-  const ocr = { name: 'receipt.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({words:['INV-1042'],bboxes:[[10,10,100,100]]})) };
+  const ocr = { name: 'receipt.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({words:['INV-1042'],bboxes:[invoiceBox]})) };
   let status = 200, raw = null;
-  let data = { invoice_number: 'INV-1042', extraction_method: 'heuristic', total_words: 7, predictions: [{ word: 'Receipt:', label:'LABEL_0', is_invoice_number:false },{word:'INV-1042',label:'HEURISTIC_MATCH',is_invoice_number:true}] };
+  let data = { invoice_number: 'INV-1042', extraction_method: 'heuristic', total_words: 1, predictions: [{word:'INV-1042',label:'HEURISTIC_MATCH',is_invoice_number:true}] };
   await page.route('**/api/predict', async route => {
     await new Promise(resolve => setTimeout(resolve, 180));
     await route.fulfill({status, contentType:raw ? 'text/plain' : 'application/json',body:raw || JSON.stringify(data)});
@@ -30,6 +31,7 @@ try {
   await check('Unsupported image gives actionable error', async()=>{await page.getByLabel('Receipt image',{exact:true}).setInputFiles({name:'receipt.pdf',mimeType:'application/pdf',buffer:Buffer.from('pdf')}); await visible(page.locator('.error-message'));});
   await check('Image preview and required OCR file', async()=>{await page.getByLabel('Receipt image',{exact:true}).setInputFiles(image); await visible(page.getByAltText('Your uploaded receipt')); assert(await extract.isDisabled()); await page.locator('#ocr-file').setInputFiles(ocr); assert(await extract.isEnabled()); });
   await check('Loading, successful extraction, and needs review',async()=>{await extract.click();await visible(page.getByText('Extracting invoice number…'));await visible(page.getByText('Needs review',{exact:true}));assert.equal(await page.locator('#invoice-number').inputValue(),'INV-1042');});
+  await check('Invoice number coordinates render a red box on the source',async()=>{const rect=page.locator('.detection-overlay rect');await visible(rect);assert.equal(await rect.count(),1);await visible(page.locator('.match-legend'));});
   await page.screenshot({path:`${dir}/desktop-result.png`,fullPage:true});
   await check('Zoom can be toggled',async()=>{await page.getByRole('button',{name:'Zoom',exact:true}).click();assert.equal(await page.locator('.receipt-preview.zoomed').count(),1);await page.getByRole('button',{name:'Fit',exact:true}).click();});
   await check('Review is explicit; editing clears review',async()=>{await page.getByRole('button',{name:'Confirm number',exact:true}).click();await visible(page.getByText('Reviewed',{exact:true}));await page.locator('#invoice-number').fill('INV-1043');await visible(page.getByText('Needs review',{exact:true}));await visible(page.getByText('Originally extracted:'));});

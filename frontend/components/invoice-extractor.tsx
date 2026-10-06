@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, CheckCircle2, Copy, FileText, ImagePlus, LoaderCircle, ReceiptText, RotateCcw, ScanLine, ZoomIn, ZoomOut } from "lucide-react";
 import { validateUploads } from "@/lib/upload";
+import { readOcrWordBoxes, type OcrWordBox } from "@/lib/ocr";
 
 import { isResult, type Result } from "@/lib/result";
 
@@ -62,12 +63,19 @@ export function InvoiceExtractor() {
     const form = new FormData();
     form.append("image", image); form.append("ocr_file", ocrFile);
     try {
+      const ocrBoxesPromise: Promise<OcrWordBox[]> = readOcrWordBoxes(ocrFile, image).catch(() => []);
       const response = await fetch("/api/predict", { method: "POST", body: form, signal: controller.signal });
       if (response.status === 413) throw new Error("These files are too large. Try a smaller receipt image.");
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(typeof data?.detail === "string" ? data.detail : "We couldn’t read this receipt. Please try again.");
       if (!isResult(data)) throw new Error("We received an incomplete result. Please try again.");
-      setResult(data);
+      const ocrBoxes = await ocrBoxesPromise;
+      const predictions = data.predictions.map((prediction, index) => {
+        const ocrBox = ocrBoxes[index];
+        const alignedBox = ocrBox?.word === prediction.word ? ocrBox.bbox : null;
+        return { ...prediction, bbox: prediction.bbox ?? alignedBox };
+      });
+      setResult({ ...data, predictions });
       setValue(data.invoice_number === "Not Found" ? "" : data.invoice_number);
     } catch (caught) {
       setError(controller.signal.aborted ? "This is taking longer than expected. Please try again." : caught instanceof Error ? caught.message : "Unable to process the receipt. Please try again.");
@@ -83,6 +91,7 @@ export function InvoiceExtractor() {
 
   const found = !!result?.invoice_number.trim() && result.invoice_number !== "Not Found";
   const matches = result?.predictions.filter((item) => item.is_invoice_number) ?? [];
+  const boxedMatches = matches.filter((item) => item.bbox && item.bbox[2] > item.bbox[0] && item.bbox[3] > item.bbox[1]);
 
   return (
     <div className="app-shell">
@@ -107,11 +116,19 @@ export function InvoiceExtractor() {
                   </label>
                 ) : (
                   <div className="preview-wrap">
-                    <div className="preview-toolbar"><span title={image?.name}>{image?.name}</span><button type="button" className="text-button" aria-pressed={zoomed} onClick={() => setZoomed(!zoomed)}>{zoomed ? <ZoomOut size={16} /> : <ZoomIn size={16} />}{zoomed ? "Fit" : "Zoom"}</button></div>
+                    <div className="preview-toolbar"><span title={image?.name}>{image?.name}</span><div className="preview-tools">{boxedMatches.length > 0 && <span className="match-legend"><span aria-hidden="true" />Invoice number</span>}<button type="button" className="text-button" aria-pressed={zoomed} onClick={() => setZoomed(!zoomed)}>{zoomed ? <ZoomOut size={16} /> : <ZoomIn size={16} />}{zoomed ? "Fit" : "Zoom"}</button></div></div>
                     <div className={`receipt-preview ${zoomed ? "zoomed" : ""}`} tabIndex={0} aria-label="Receipt preview; scroll to inspect">
-                      {/* User-selected local image; must retain its original detail. */}
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={previewUrl} alt="Your uploaded receipt" onError={() => { setImage(null); clearResult(); setError("This image could not be opened. Try a different JPG, PNG, or WebP file."); }} />
+                      <div className="receipt-image-frame">
+                        {/* User-selected local image; must retain its original detail. */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={previewUrl} alt="Your uploaded receipt" onError={() => { setImage(null); clearResult(); setError("This image could not be opened. Try a different JPG, PNG, or WebP file."); }} />
+                        {boxedMatches.length > 0 && <svg className="detection-overlay" viewBox="0 0 1000 1000" preserveAspectRatio="none" role="img" aria-label={`${boxedMatches.length} detected invoice number ${boxedMatches.length === 1 ? "word" : "words"} highlighted in red`}>
+                          {boxedMatches.map((item, index) => {
+                            const [x0, y0, x1, y1] = item.bbox!;
+                            return <rect key={`${item.word}-${index}`} x={x0} y={y0} width={x1 - x0} height={y1 - y0}><title>{item.word}</title></rect>;
+                          })}
+                        </svg>}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -139,7 +156,7 @@ export function InvoiceExtractor() {
                 {matches.length > 1 && !reviewed && <p className="multiple-note">More than one word was matched. Check that they belong to the same invoice number.</p>}
                 <div className="review-actions"><button className="primary-button" type="button" disabled={!value.trim() || reviewed} onClick={() => { setValue(value.trim()); setReviewed(true); }}><Check size={17} />{reviewed ? "Confirmed" : "Confirm number"}</button><button className="secondary-button" type="button" disabled={!value.trim()} onClick={copyValue}><Copy size={16} />Copy number</button></div>
                 <p className="local-note" role="status">{copyStatus || "Edits and review status stay on this page only."}</p>
-                <details className="extraction-details"><summary>Extraction details<span>{result.total_words} words read</span></summary><p className="help-text">Method: {result.extraction_method}</p><p className="help-text">Matched words are highlighted below.</p><div className="word-list">{result.predictions.map((item, index) => <span key={index} className={item.is_invoice_number ? "matched" : ""}>{item.word}</span>)}</div></details>
+                <details className="extraction-details"><summary>Extraction details<span>{result.total_words} words read</span></summary><p className="help-text">Method: {result.extraction_method}</p><p className="help-text">Matched words are highlighted below and boxed on the source document.</p><div className="word-list">{result.predictions.map((item, index) => <span key={index} className={item.is_invoice_number ? "matched" : ""}>{item.word}</span>)}</div></details>
                 <button className="next-receipt text-button" type="button" onClick={reset}>New document<ArrowRight size={15} /></button>
               </div>
             ) : (
