@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, CheckCircle2, Copy, FileText, ImagePlus, LoaderCircle, ReceiptText, RotateCcw, ScanLine, ZoomIn, ZoomOut } from "lucide-react";
 import { validateUploads } from "@/lib/upload";
-import { readOcrWordBoxes, type OcrWordBox } from "@/lib/ocr";
+import { readOcrWordBoxes, validateOcr, type OcrWordBox } from "@/lib/ocr";
 
 import { isResult, type Result } from "@/lib/result";
 
@@ -21,6 +21,7 @@ export function InvoiceExtractor() {
   const [copyStatus, setCopyStatus] = useState("");
   const [fileKey, setFileKey] = useState(0);
   const request = useRef<AbortController | null>(null);
+  const submitting = useRef(false);
   const resultHeading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
@@ -37,7 +38,7 @@ export function InvoiceExtractor() {
   }
 
   function chooseImage(file?: File) {
-    if (!file || loading) return;
+    if (!file || submitting.current || loading) return;
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
       setError("Choose a JPG, PNG, or WebP receipt image."); return;
     }
@@ -48,22 +49,30 @@ export function InvoiceExtractor() {
   }
 
   function reset() {
+    if (submitting.current) return;
     clearResult(); setImage(null); setOcrFile(null); setZoomed(false); setFileKey((key) => key + 1);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (loading || !image || !ocrFile) return;
-    const validation = validateUploads(image, ocrFile);
+    if (submitting.current || loading || !image) return;
+    const validation = validateUploads(image);
     if (validation) { setError(validation); return; }
+    submitting.current = true;
     clearResult(); setLoading(true);
     const controller = new AbortController();
     request.current = controller;
     const timeout = window.setTimeout(() => controller.abort(), 270_000);
-    const form = new FormData();
-    form.append("image", image); form.append("ocr_file", ocrFile);
     try {
-      const ocrBoxesPromise: Promise<OcrWordBox[]> = readOcrWordBoxes(ocrFile, image).catch(() => []);
+      const validOcr = ocrFile && !validateUploads(image, ocrFile) && !(await validateOcr(ocrFile))
+        ? ocrFile
+        : null;
+      const form = new FormData();
+      form.append("image", image);
+      if (validOcr) form.append("ocr_file", validOcr);
+      const ocrBoxesPromise: Promise<OcrWordBox[]> = validOcr
+        ? readOcrWordBoxes(validOcr, image).catch(() => [])
+        : Promise.resolve([]);
       const response = await fetch("/api/predict", { method: "POST", body: form, signal: controller.signal });
       if (response.status === 413) throw new Error("These files are too large. Try a smaller receipt image.");
       const data = await response.json().catch(() => null);
@@ -80,7 +89,7 @@ export function InvoiceExtractor() {
     } catch (caught) {
       setError(controller.signal.aborted ? "This is taking longer than expected. Please try again." : caught instanceof Error ? caught.message : "Unable to process the receipt. Please try again.");
     } finally {
-      window.clearTimeout(timeout); request.current = null; setLoading(false);
+      window.clearTimeout(timeout); request.current = null; setLoading(false); submitting.current = false;
     }
   }
 
@@ -121,7 +130,7 @@ export function InvoiceExtractor() {
                       <div className="receipt-image-frame">
                         {/* User-selected local image; must retain its original detail. */}
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={previewUrl} alt="Your uploaded receipt" onError={() => { setImage(null); clearResult(); setError("This image could not be opened. Try a different JPG, PNG, or WebP file."); }} />
+                        <img src={previewUrl} alt="Your uploaded receipt" onError={() => { if (submitting.current) return; setImage(null); clearResult(); setError("This image could not be opened. Try a different JPG, PNG, or WebP file."); }} />
                         {boxedMatches.length > 0 && <svg className="detection-overlay" viewBox="0 0 1000 1000" preserveAspectRatio="none" role="img" aria-label={`${boxedMatches.length} detected invoice number ${boxedMatches.length === 1 ? "word" : "words"} highlighted in red`}>
                           {boxedMatches.map((item, index) => {
                             const [x0, y0, x1, y1] = item.bbox!;
@@ -133,12 +142,12 @@ export function InvoiceExtractor() {
                   </div>
                 )}
                 <div className="upload-controls">
-                  <label className="ocr-label" htmlFor="ocr-file"><FileText size={17} /><span>OCR file <span className="required">Required</span></span></label>
+                  <label className="ocr-label" htmlFor="ocr-file"><FileText size={17} /><span>OCR file</span></label>
                   <p className="help-text" id="ocr-help">Matching TXT or JSON with text coordinates.</p>
-                  <input key={`ocr-${fileKey}`} id="ocr-file" aria-describedby="ocr-help" className="file-input" type="file" accept=".txt,.json" onChange={(event) => { clearResult(); setOcrFile(event.target.files?.[0] ?? null); }} />
+                  <input key={`ocr-${fileKey}`} id="ocr-file" aria-describedby="ocr-help" className="file-input" type="file" accept=".txt,.json" onChange={(event) => { if (submitting.current) return; clearResult(); setOcrFile(event.target.files?.[0] ?? null); }} />
                   <details className="format-help"><summary>Which file do I need?</summary><p>A TXT file with text and corner coordinates, or JSON with <code>words</code> and <code>bboxes</code> (or <code>boxes</code>). Plain text alone won’t work. OCR file: up to 2 MB; both files: up to 4 MB combined.</p></details>
                   {error && <p className="error-message" role="alert">{error}</p>}
-                  <button className="primary-button" type="submit" disabled={loading || !image || !ocrFile}>{loading ? <><LoaderCircle size={17} className="animate-spin" />Extracting…</> : <>Extract invoice number<ArrowRight size={17} /></>}</button>
+                  <button className="primary-button" type="submit" disabled={loading || !image}>{loading ? <><LoaderCircle size={17} className="animate-spin" />Extracting…</> : <>Extract invoice number<ArrowRight size={17} /></>}</button>
                   <p className="under-button" role="status">{loading ? "This may take a few minutes on the first request. Keep this page open." : ""}</p>
                 </div>
               </fieldset>
@@ -156,11 +165,11 @@ export function InvoiceExtractor() {
                 {matches.length > 1 && !reviewed && <p className="multiple-note">More than one word was matched. Check that they belong to the same invoice number.</p>}
                 <div className="review-actions"><button className="primary-button" type="button" disabled={!value.trim() || reviewed} onClick={() => { setValue(value.trim()); setReviewed(true); }}><Check size={17} />{reviewed ? "Confirmed" : "Confirm number"}</button><button className="secondary-button" type="button" disabled={!value.trim()} onClick={copyValue}><Copy size={16} />Copy number</button></div>
                 <p className="local-note" role="status">{copyStatus || "Edits and review status stay on this page only."}</p>
-                <details className="extraction-details"><summary>Extraction details<span>{result.total_words} words read</span></summary><p className="help-text">Method: {result.extraction_method}</p><p className="help-text">Matched words are highlighted below and boxed on the source document.</p><div className="word-list">{result.predictions.map((item, index) => <span key={index} className={item.is_invoice_number ? "matched" : ""}>{item.word}</span>)}</div></details>
+                <details className="extraction-details"><summary>Extraction details<span>{result.extraction_method === "openrouter_image_only" ? "Image only" : `${result.total_words} OCR words read`}</span></summary><p className="help-text">Method: {result.extraction_method}</p>{result.extraction_method === "openrouter_image_only" ? <p className="help-text">No OCR word coordinates are available for highlights.</p> : <p className="help-text">Matched words are highlighted below and boxed on the source document.</p>}<div className="word-list">{result.predictions.map((item, index) => <span key={index} className={item.is_invoice_number ? "matched" : ""}>{item.word}</span>)}</div></details>
                 <button className="next-receipt text-button" type="button" onClick={reset}>New document<ArrowRight size={15} /></button>
               </div>
             ) : (
-              <div className="empty-result" role="status"><span className={`empty-icon ${loading ? "processing" : ""}`}>{loading ? <LoaderCircle size={27} className="animate-spin" /> : <ScanLine size={29} strokeWidth={1.4} />}</span><h3>{loading ? "Extracting invoice number…" : "No data extracted"}</h3><p>{loading ? "This may take a few minutes." : "Upload a document and OCR file to begin."}</p></div>
+              <div className="empty-result" role="status"><span className={`empty-icon ${loading ? "processing" : ""}`}>{loading ? <LoaderCircle size={27} className="animate-spin" /> : <ScanLine size={29} strokeWidth={1.4} />}</span><h3>{loading ? "Extracting invoice number…" : "No data extracted"}</h3><p>{loading ? "This may take a few minutes." : "Upload a document to begin."}</p></div>
             )}
           </section>
         </div>

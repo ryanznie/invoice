@@ -7,11 +7,12 @@ production branch `main`. Pull requests get Preview deployments. Merging into
 `main` creates a Production deployment. Preview and Production are environments,
 not Git tags or GitHub Releases. Leave the custom Ignored Build Step empty.
 
-Keep `RUNPOD_ENDPOINT_ID`, `RUNPOD_API_KEY`, `RUNPOD_INVOKE_BASE_URL`, and
-`DEMO_PASSWORD` server-only in Vercel. Configure Preview and Production explicitly;
-never commit values or expose them through `NEXT_PUBLIC_`. For this trusted demo,
-both environments may use the same inference endpoint. Use separate credentials,
-passwords, and endpoint budgets before expanding access.
+Keep `RUNPOD_ENDPOINT_ID`, `RUNPOD_API_KEY`, and `RUNPOD_INVOKE_BASE_URL`
+server-only in Vercel. Configure inference variables for Preview and Production,
+and configure `DEMO_PASSWORD` for Preview only. Vercel Authentication protects
+Preview deployments; Production is public and accepts unauthenticated inference
+requests. Never commit values or expose them through `NEXT_PUBLIC_`. Use separate
+inference credentials and endpoint budgets for Preview and Production.
 
 ## Versioning
 
@@ -34,11 +35,13 @@ infer a backend release solely from the frontend version.
 1. Open a PR to `main`; review the diff and resolve actionable review comments.
 2. Pass Python checks plus frontend typecheck, build, proxy integration, and
    Chromium review checks. CI uploads repeatable reports and screenshots.
-3. Verify the Vercel Preview deployment with a real receipt and its OCR file.
-   Check that unauthenticated requests are rejected and inference succeeds.
+3. Verify the Vercel Preview deployment with a real receipt, both with valid OCR
+   and with the OCR field omitted. Check that unauthenticated requests are rejected
+   and image-only inference succeeds.
 4. Obtain the required approving review and merge without bypassing protection.
-5. Verify the new Production deployment uses the merge commit, then repeat the
-   authentication and real receipt smoke checks on the production URL.
+5. Verify the new Production deployment uses the merge commit. Confirm the page
+   and inference endpoint work without Basic authentication, cross-origin browser
+   submissions remain blocked, and a real receipt smoke check succeeds.
 6. Only after production passes, create the version tag and GitHub Release.
 
 Configure required status checks on `main` for `test`, `lint`, and `frontend` once
@@ -56,11 +59,14 @@ using current secrets. Instant Rollback pauses automatic production-domain
 assignment; promote the verified replacement deployment to resume it. Fix forward under a new patch version; retain the old tag
 and document the incident in its release notes.
 
-This is a password-protected demo: it requires an image plus coordinate-bearing
-OCR and saves corrections only in the browser session. Before offering public
-customer access, add per-user authentication, durable review/audit storage,
-distributed request limits, spending alerts, and a documented retention policy.
-Monitor failed requests, inference latency, and Runpod spending; rehearse rollback.
+This is a publicly accessible demo: it accepts an image and uses valid
+coordinate-bearing OCR when available, falling back to image-only OpenRouter
+vision inference otherwise. That fallback sends the invoice image to OpenRouter.
+Corrections are saved only in the browser session. Unauthenticated visitors can
+submit inference work to Runpod. Before using it as a customer-facing service, add
+per-user authentication, durable review/audit storage, distributed request limits,
+spending alerts, and a documented retention policy. Monitor failed requests,
+inference latency, and Runpod spending; rehearse rollback.
 
 References: [Vercel Git deployments](https://vercel.com/docs/git),
 [Vercel Instant Rollback](https://vercel.com/docs/instant-rollback),

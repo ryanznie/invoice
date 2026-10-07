@@ -426,3 +426,18 @@ def predict_invoice(
         "invoice_number": invoice_number,
         "confidence_scores": word_confidences,
     }
+
+
+def predict_invoice_from_image(image: Image.Image) -> Dict:
+    """Use the configured vision model when no valid OCR words are available."""
+    validate_image(image)
+    global openrouter_client
+    if openrouter_client is None:
+        from .openrouter import OpenRouterClient
+
+        openrouter_client = OpenRouterClient()
+
+    result = openrouter_client.predict(image=image)
+    if result.get("error"):
+        raise RuntimeError("Image-only vision inference failed")
+    return result

@@ -19,7 +19,8 @@ function error(detail: string, status: number) {
 
 async function callRunpod(form: FormData, request: Request) {
   const image = form.get("image") as File;
-  const ocr = form.get("ocr_file") as File;
+  const ocrValue = form.get("ocr_file");
+  const ocr = ocrValue instanceof File ? ocrValue : null;
   const base = `${process.env.RUNPOD_INVOKE_BASE_URL ?? "https://api.runpod.ai/v2"}/${process.env.RUNPOD_ENDPOINT_ID}`;
   const headers = { Authorization: `Bearer ${process.env.RUNPOD_API_KEY}`, "Content-Type": "application/json" };
   const timeout = processingTimeoutMs();
@@ -34,7 +35,9 @@ async function callRunpod(form: FormData, request: Request) {
       method: "POST", headers, cache: "no-store", signal,
       body: JSON.stringify({ input: {
         image_base64: Buffer.from(await image.arrayBuffer()).toString("base64"), image_filename: image.name,
-        ocr_base64: Buffer.from(await ocr.arrayBuffer()).toString("base64"), ocr_filename: ocr.name,
+        ...(ocr ? {
+          ocr_base64: Buffer.from(await ocr.arrayBuffer()).toString("base64"), ocr_filename: ocr.name,
+        } : {}),
       }, policy: { executionTimeout: Math.max(5000, timeout), ttl: Math.max(10_000, timeout + 30_000) } }),
     });
     const job = await submitted.json();
@@ -98,10 +101,14 @@ export async function POST(request: Request) {
     form = await new Response(Buffer.concat(chunks), { headers: { "Content-Type": request.headers.get("content-type") ?? "" } }).formData();
   } catch { return error("Upload files using valid multipart form data.", 400); }
   const image = form.get("image");
-  const ocr = form.get("ocr_file");
-  if (!(image instanceof File) || !(ocr instanceof File)) return error("A receipt image and matching OCR file are required.", 400);
-  const validation = validateUploads(image, ocr) ?? await validateOcr(ocr);
-  if (validation) return error(validation, 400);
+  if (!(image instanceof File)) return error("A receipt image is required.", 400);
+  const imageValidation = validateUploads(image);
+  if (imageValidation) return error(imageValidation, 400);
+  const ocrValue = form.get("ocr_file");
+  const ocrIsValid = ocrValue instanceof File &&
+    !validateUploads(image, ocrValue) &&
+    !(await validateOcr(ocrValue));
+  if (!ocrIsValid) form.delete("ocr_file");
   if (process.env.RUNPOD_ENDPOINT_ID && process.env.RUNPOD_API_KEY) return callRunpod(form, request);
   if (!process.env.INVOICE_NER_API_URL) return error("No inference backend is configured.", 503);
   const deadline = AbortSignal.timeout(processingTimeoutMs());

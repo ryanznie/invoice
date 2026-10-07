@@ -47,10 +47,10 @@ const upstreamPort=upstream.address().port;
 const reserve=createServer();await new Promise(resolve=>reserve.listen(0,'127.0.0.1',resolve));const port=reserve.address().port;await new Promise(resolve=>reserve.close(resolve));
 const base=`http://127.0.0.1:${port}`;
 let logs='';
-const app=spawn(process.execPath,['node_modules/next/dist/bin/next','start','--port',String(port)],{env:{...process.env,DEMO_PASSWORD:password,RUNPOD_ENDPOINT_ID:'test',RUNPOD_API_KEY:'integration-only-key',RUNPOD_INVOKE_BASE_URL:`http://127.0.0.1:${upstreamPort}`,INVOICE_PROCESSING_TIMEOUT_MS:'3500'},stdio:['ignore','pipe','pipe']});
+const app=spawn(process.execPath,['node_modules/next/dist/bin/next','start','--port',String(port)],{env:{...process.env,DEMO_PASSWORD:password,VERCEL_ENV:'preview',RUNPOD_ENDPOINT_ID:'test',RUNPOD_API_KEY:'integration-only-key',RUNPOD_INVOKE_BASE_URL:`http://127.0.0.1:${upstreamPort}`,INVOICE_PROCESSING_TIMEOUT_MS:'3500'},stdio:['ignore','pipe','pipe']});
 app.stdout.on('data',c=>logs+=c);app.stderr.on('data',c=>logs+=c);
 const image=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j1xkAAAAASUVORK5CYII=','base64');
-function form(text=JSON.stringify({words:['INV-1042'],bboxes:[[0,0,10,10]]}),name='receipt.json') {const f=new FormData();f.set('image',new Blob([image],{type:'image/png'}),'receipt.png');f.set('ocr_file',new Blob([text]),name);return f;}
+function form(text=null,name='receipt.json') {const f=new FormData();f.set('image',new Blob([image],{type:'image/png'}),'receipt.png');if(text!==null)f.set('ocr_file',new Blob([text]),name);return f;}
 const post=(body=form(),extra={})=>fetch(`${base}/api/predict`,{method:'POST',headers,body,...extra});
 async function check(name,fn){await fn();report.checks.push(name);}
 try {
@@ -58,20 +58,44 @@ try {
  await check('Page and API reject unauthenticated requests before paid work',async()=>{assert.equal((await fetch(base)).status,401);assert.equal((await post(form(),{headers:{}})).status,401);assert.equal(submitted,0);});
  await check('Incorrect password and cross-origin requests rejected',async()=>{assert.equal((await post(form(),{headers:{authorization:'Basic ZGVtbzpiYWQ='}})).status,401);assert.equal((await post(form(),{headers:{...headers,origin:'https://other.example'}})).status,403);assert.equal(submitted,0);});
  const invalid=[['bad JSON','{'],['unequal arrays',JSON.stringify({words:['x'],bboxes:[]})],['invalid box',JSON.stringify({words:['x'],bboxes:[[9,0,1,5]]})],['non-numeric box',JSON.stringify({words:['x'],bboxes:[[0,0,'10',10]]})],['empty word',JSON.stringify({words:[''],bboxes:[[0,0,10,10]]})],['invalid lines',JSON.stringify({words:['x'],bboxes:[[0,0,10,10]],ocr_lines:[3]})],['bad TXT','bad line','receipt.txt'],['invalid numeric TXT','0,0,10,0,10,10,0,10,Hello\nno,0,10,0,10,10,0,10,broken','receipt.txt'],['empty-text TXT','0,0,10,0,10,10,0,10,','receipt.txt'],['invalid UTF-8',Buffer.from([0xff])]];
- for(const [name,text,file] of invalid) await check(`Reject ${name} before submission`,async()=>{const n=submitted;assert.equal((await post(form(text,file))).status,400);assert.equal(submitted,n);});
+ for(const [name,text,file] of invalid) await check(`Ignore ${name} and process image only`,async()=>{mode='success';const n=submitted;const response=await post(form(text,file));assert.equal(response.status,200);assert.equal(submitted,n+1);assert.equal(lastInput.image_base64,image.toString('base64'));assert.equal(lastInput.ocr_base64,undefined);});
  await check('Streamed request size is bounded before parsing',async()=>{const n=submitted;const response=await new Promise((resolve,reject)=>{const req=httpRequest(`${base}/api/predict`,{method:'POST',headers:{...headers,'content-type':'multipart/form-data; boundary=test','transfer-encoding':'chunked'}},res=>{res.resume();res.on('end',()=>resolve(res.statusCode));});req.on('error',reject);req.end(Buffer.alloc(4_100_000));});assert.equal(response,413);assert.equal(submitted,n);});
  await check('Reject malformed multipart',async()=>{assert.equal((await post('not multipart')).status,400);});
- await check('Reject oversized OCR',async()=>{assert.equal((await post(form('x'.repeat(2_000_001)))).status,400);});
+ await check('Oversized OCR falls back to image only',async()=>{const response=await post(form('x'.repeat(2_000_001)));assert.equal(response.status,200);assert.equal(lastInput.ocr_base64,undefined);});
  for(const [name,text,file] of [['JSON',JSON.stringify({words:['INV-1042'],bboxes:[[0,0,10,10]]})],['fractional JSON',JSON.stringify({words:['INV-1042'],bboxes:[[0.5,1.5,10.25,10.75]]})],['TXT with short lines','Header\n0,0,10,0,10,10,0,10,INV-1042\nfooter','receipt.txt'],['TXT with empty text','0,0,10,0,10,10,0,10,\n0,0,10,0,10,10,0,10,INV-1042','receipt.txt'],['boxes alias',JSON.stringify({words:['INV-1042'],boxes:[[0,0,10,10]]})],['TXT','0,0,10,0,10,10,0,10,INV-1042','receipt.txt']]) await check(`Full submission and polling with ${name}`,async()=>{mode='success';const response=await post(form(text,file));assert.equal(response.status,200);assert.deepEqual(await response.json(),result);assert.equal(Buffer.from(lastInput.ocr_base64,'base64').toString(),text);assert.equal(lastInput.image_base64,image.toString('base64'));});
  for(const scenario of ['submit-failure','bad-submit','FAILED','CANCELLED','TIMED_OUT','bad-output']) await check(`Handles ${scenario}`,async()=>{mode=scenario;assert.equal((await post()).status,502);});
  for(const scenario of ['poll-failure','bad-json','timeout']) await check(`Cancels outstanding job on ${scenario}`,async()=>{mode=scenario;const before=cancelled;const response=await post();assert.equal(response.status,scenario==='timeout'?504:502);assert.equal(cancelled,before+1);});
  await check('Cancellation failure warns against duplicate retry',async()=>{mode='cancel-failure';const response=await post();assert.equal(response.status,504);assert.match((await response.json()).detail,/could not confirm cancellation/i);});
  await check('Disconnect cancels known job',async()=>{mode='abort';const before=cancelled;const n=submitted;const controller=new AbortController();const pending=post(form(),{signal:controller.signal}).catch(()=>null);while(submitted===n)await sleep(20);await sleep(100);controller.abort();await pending;for(let i=0;i<60 && cancelled===before;i++)await sleep(100);assert.equal(cancelled,before+1);});
  for(const [state,counts] of [['ready',{idle:1,ready:1}],['busy',{running:1,ready:1}],['initializing',{initializing:1}],['idle',{}]]) await check(`Health reports ${state}`,async()=>{workers=counts;const r=await fetch(`${base}/api/health`,{headers});const data=await r.json();assert.equal(data.status,state);assert.equal(data.ready,state==='ready');});
- await check('Production fails closed without password',async()=>{
+ await check('Production allows public access without a demo password',async()=>{
    const reserve=createServer();await new Promise(r=>reserve.listen(0,'127.0.0.1',r));const p=reserve.address().port;await new Promise(r=>reserve.close(r));
-   const unconfigured=spawn(process.execPath,['node_modules/next/dist/bin/next','start','--port',String(p)],{env:{...process.env,DEMO_PASSWORD:''},stdio:'ignore'});
-   try {let response;for(let i=0;i<100;i++){try{response=await fetch(`http://127.0.0.1:${p}`);break;}catch{await sleep(100);}}assert.equal(response.status,503);}finally{unconfigured.kill('SIGTERM');}
+   const productionBase=`http://127.0.0.1:${p}`;
+   const unconfigured=spawn(process.execPath,['node_modules/next/dist/bin/next','start','--port',String(p)],{env:{...process.env,DEMO_PASSWORD:'',VERCEL_ENV:'production',RUNPOD_ENDPOINT_ID:'',RUNPOD_API_KEY:'',INVOICE_NER_API_URL:''},stdio:'ignore'});
+   try {
+     let page;for(let i=0;i<100;i++){try{page=await fetch(productionBase);break;}catch{await sleep(100);}}
+     assert.equal(page.status,200);
+     const before=submitted;
+     const response=await fetch(`${productionBase}/api/predict`,{method:'POST',body:form()});
+     assert.equal(response.status,503);assert.equal(response.headers.get('www-authenticate'),null);assert.equal(submitted,before);
+     const crossOrigin=await fetch(`${productionBase}/api/predict`,{method:'POST',headers:{origin:'https://other.example'},body:form()});
+     assert.equal(crossOrigin.status,403);assert.equal(submitted,before);
+   } finally {unconfigured.kill('SIGTERM');}
+ });
+ await check('Local production build still requires a demo password',async()=>{
+   const reserve=createServer();await new Promise(r=>reserve.listen(0,'127.0.0.1',r));const p=reserve.address().port;await new Promise(r=>reserve.close(r));
+   const localEnv={...process.env,DEMO_PASSWORD:'',RUNPOD_ENDPOINT_ID:'',RUNPOD_API_KEY:'',INVOICE_NER_API_URL:''};delete localEnv.VERCEL_ENV;
+   const localProduction=spawn(process.execPath,['node_modules/next/dist/bin/next','start','--port',String(p)],{env:localEnv,stdio:'ignore'});
+   try {let page;for(let i=0;i<100;i++){try{page=await fetch(`http://127.0.0.1:${p}`);break;}catch{await sleep(100);}}assert.equal(page.status,503);}
+   finally {localProduction.kill('SIGTERM');}
+ });
+ await check('Public Production accepts an unauthenticated image-only submission',async()=>{
+   mode='success';
+   const reserve=createServer();await new Promise(r=>reserve.listen(0,'127.0.0.1',r));const p=reserve.address().port;await new Promise(r=>reserve.close(r));
+   const productionEnv={...process.env,DEMO_PASSWORD:'',VERCEL_ENV:'production',RUNPOD_ENDPOINT_ID:'test',RUNPOD_API_KEY:'integration-only-key',RUNPOD_INVOKE_BASE_URL:`http://127.0.0.1:${upstreamPort}`,INVOICE_NER_API_URL:''};
+   const publicProduction=spawn(process.execPath,['node_modules/next/dist/bin/next','start','--port',String(p)],{env:productionEnv,stdio:'ignore'});
+   try {let page;for(let i=0;i<100;i++){try{page=await fetch(`http://127.0.0.1:${p}`);break;}catch{await sleep(100);}}assert.equal(page.status,200);const before=submitted;const response=await fetch(`http://127.0.0.1:${p}/api/predict`,{method:'POST',body:form(null)});assert.equal(response.status,200);assert.deepEqual(await response.json(),result);assert.equal(submitted,before+1);assert.equal(lastInput.image_base64,image.toString('base64'));assert.equal(lastInput.ocr_base64,undefined);}
+   finally {publicProduction.kill('SIGTERM');}
  });
  const localReserve=createServer();await new Promise(r=>localReserve.listen(0,'127.0.0.1',r));const localPort=localReserve.address().port;await new Promise(r=>localReserve.close(r));
  const localApp=spawn(process.execPath,['node_modules/next/dist/bin/next','start','--port',String(localPort)],{env:{...process.env,DEMO_PASSWORD:password,RUNPOD_ENDPOINT_ID:'',RUNPOD_API_KEY:'',INVOICE_NER_API_URL:`http://127.0.0.1:${upstreamPort}`,INVOICE_PROCESSING_TIMEOUT_MS:'1000'},stdio:'ignore'});

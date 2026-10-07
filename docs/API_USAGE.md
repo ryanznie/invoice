@@ -16,11 +16,15 @@ There is no built-in API authentication or request-rate limit. Put public deploy
 
 ## Predict
 
-Send a multipart request with an image and an OCR file:
+Send an image, with a valid OCR file when available:
 
+    curl -F 'image=@invoice.jpg' http://localhost:7860/predict
     curl -F 'image=@invoice.jpg' -F 'ocr_file=@ocr.json' http://localhost:7860/predict
 
-The image must be readable by Pillow. The OCR filename must end in .txt or .json.
+The image must be readable by Pillow. A valid TXT/JSON OCR file enables word-level
+inference and bounding boxes. Missing or invalid OCR selects image-only inference
+through the configured OpenRouter vision model. This sends the image to OpenRouter
+and requires `OPENROUTER_API_KEY`; image-only results have no OCR word boxes.
 
 TXT OCR files contain one line per OCR region, with eight polygon coordinates followed by text:
 
@@ -36,7 +40,7 @@ JSON OCR files use words and bounding boxes:
 
 Use one [x0, y0, x1, y1] box per word. TXT coordinates are normalized using the image dimensions. JSON boxes should use the 0–1000 range; JSON coordinates above 1000 are treated as pixels and normalized automatically.
 
-A successful response includes invoice_number, extraction_method, predictions, total_words, and model_device. extraction_method is heuristic or model. If no match is found, invoice_number is Not Found.
+A successful response includes invoice_number, extraction_method, predictions, total_words, and model_device. extraction_method is heuristic or model with valid OCR, or openrouter_image_only when no valid OCR is available. Image-only responses have an empty predictions list and total_words of 0. If no match is found, invoice_number is Not Found.
 
 ## Limits and errors
 
@@ -44,9 +48,9 @@ Default upload limits are 10 MiB for images and 2 MiB for OCR files; configure t
 
 | Status | Meaning |
 | --- | --- |
-| 400 | Invalid image or OCR file |
+| 400 | Invalid image or malformed request |
 | 413 | Upload exceeds its configured size limit |
-| 422 | Required multipart fields are missing |
+| 422 | Required image multipart field is missing |
 | 500 | Inference failed |
 | 503 | Model is not ready, or hosted fallback configuration is missing or invalid |
 

@@ -1,6 +1,6 @@
 # Runpod CPU Serverless
 
-The queue-based CPU worker accepts a base64-encoded invoice image and TXT or JSON OCR file. The same handler runs locally in tests and in production. Set `OPENROUTER_API_KEY` on the worker to use hosted fallback when local inference fails.
+The queue-based CPU worker accepts a base64-encoded invoice image and an optional TXT or JSON OCR file. Valid OCR uses the local word-based pipeline; if OCR is missing or invalid, the worker submits the image to OpenRouter for image-only inference. This sends invoice data to OpenRouter and requires `OPENROUTER_API_KEY` on the worker. Image-only results do not include OCR token coordinates.
 
 ## Last validated release
 
@@ -18,9 +18,13 @@ Run the handler tests without loading model files:
 
     PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run pytest -o addopts='' tests/test_runpod_handler.py tests/test_runpod_smoke_script.py
 
-Run real CPU inference locally. The image and OCR sample must be present in the downloaded SROIE2019 dataset:
+The backend smoke script exercises the local CPU pipeline and requires both an image and its matching OCR sample. Keep the image and OCR sample in the downloaded SROIE2019 dataset:
 
     uv run python scripts/smoke_test_runpod_backend.py --image data/SROIE2019/test/img/X00016469670.jpg --ocr data/SROIE2019/test/box/X00016469670.txt --expected PEGIV-1030765
+
+For image-only API inference, start the API with `OPENROUTER_API_KEY` configured, then send only the image. This path sends the invoice image to OpenRouter; it does not exercise local CPU model inference:
+
+    curl -F 'image=@data/SROIE2019/test/img/X00016469670.jpg' http://127.0.0.1:7860/predict
 
 Test the published worker image:
 
