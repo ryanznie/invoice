@@ -24,7 +24,8 @@ Send an image, with a valid OCR file when available:
 The image must be readable by Pillow. A valid TXT/JSON OCR file enables word-level
 inference and bounding boxes. Missing or invalid OCR selects image-only inference
 through the configured OpenRouter vision model. This sends the image to OpenRouter
-and requires `OPENROUTER_API_KEY`; image-only results have no OCR word boxes.
+and requires `OPENROUTER_API_KEY`; image-only results have no OCR word boxes. The
+default model is `qwen/qwen3-vl-8b-instruct`; set `OPENROUTER_MODEL` to override it.
 
 TXT OCR files contain one line per OCR region, with eight polygon coordinates followed by text:
 

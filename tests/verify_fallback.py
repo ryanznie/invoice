@@ -34,7 +34,7 @@ class TestOpenRouterFallback(unittest.TestCase):
             "invoice_number": "12345",
             "raw_response": "12345",
             "latency_ms": 100,
-            "method": "qwen/qwen2.5-vl-72b-instruct",
+            "method": "qwen/qwen3-vl-8b-instruct",
         }
 
         # Run prediction
@@ -44,7 +44,7 @@ class TestOpenRouterFallback(unittest.TestCase):
         # Verify result
         print(f"Result: {result}")
         self.assertEqual(result["invoice_number"], "12345")
-        self.assertEqual(result["method"], "qwen/qwen2.5-vl-72b-instruct")
+        self.assertEqual(result["method"], "qwen/qwen3-vl-8b-instruct")
 
         # Verify calls
         self.mock_backend.predict.assert_called_once()
