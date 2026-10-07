@@ -126,9 +126,7 @@ class OpenRouterClient:
     ):
         self.api_key = api_key or os.getenv("OPENROUTER_API_KEY")
         self.model_name = (
-            model_name
-            or os.getenv("OPENROUTER_MODEL")
-            or "qwen/qwen2.5-vl-72b-instruct"
+            model_name or os.getenv("OPENROUTER_MODEL") or "qwen/qwen3-vl-8b-instruct"
         )
         self.base_url = base_url or os.getenv(
             "OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"

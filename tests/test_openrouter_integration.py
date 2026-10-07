@@ -29,7 +29,7 @@ def test_benchmark_openrouter_registered():
     model = get_model("openrouter", {})
 
     assert isinstance(model, OpenRouterModel)
-    assert model.model_name == "qwen/qwen2.5-vl-72b-instruct"
+    assert model.model_name == "qwen/qwen3-vl-8b-instruct"
 
 
 def test_benchmark_openrouter_uses_model_path_as_model_id():

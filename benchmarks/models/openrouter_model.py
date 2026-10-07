@@ -32,7 +32,7 @@ class OpenRouterModel(BaseInvoiceModel):
         self.model_name = (
             self.model_config.get("model_path")
             or os.getenv("OPENROUTER_MODEL")
-            or "qwen/qwen2.5-vl-72b-instruct"
+            or "qwen/qwen3-vl-8b-instruct"
         )
         self.base_url = self.model_config.get(
             "base_url",
