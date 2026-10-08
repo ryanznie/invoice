@@ -33,21 +33,16 @@ See [Testing](docs/TESTING.md) for contract and container checks.
 - [Model card](models/layoutlmv3-lora-invoice-number/README.md)
 - [Next.js frontend setup and deployment](frontend/README.md)
 
-## Invoice review frontend
+## Demo
 
-The Next.js interface places the uploaded document beside the extracted invoice
-number. When OCR coordinates are available, matching words are highlighted on
-the image. Reviewers can edit the number, confirm it, or copy it. See the
-[frontend guide](frontend/README.md) for local development and Vercel deployment.
+Upload a receipt, review the invoice number, then confirm or copy it.
 
-The screenshots use a synthetic receipt and simulated extraction response.
-
-![Invoice review upload state](docs/screenshots/invoice-review-empty.png)
-
-![Invoice number review beside the highlighted receipt](docs/screenshots/invoice-review-result.png)
+![Invoice review demo](docs/screenshots/invoice-review-result.png)
 
 <details>
-<summary>Mobile layout</summary>
+<summary>See the empty and mobile layouts</summary>
+
+![Empty upload state](docs/screenshots/invoice-review-empty.png)
 
 ![Invoice review on a mobile viewport](docs/screenshots/invoice-review-mobile.png)
 </details>
