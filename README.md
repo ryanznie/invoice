@@ -1,6 +1,6 @@
 # Invoice NER
 
-Extract invoice numbers from invoice images using OCR text and bounding boxes. The app exposes a FastAPI API and a Gradio upload UI; extraction uses heuristics first, then a local LayoutLMv3 ONNX model with OpenRouter as the hosted fallback. Set `OPENROUTER_API_KEY` for cases where local inference raises an error.
+Invoice NER extracts invoice numbers from invoice images with heuristics and a local LayoutLMv3 ONNX model, with OpenRouter as an optional fallback. Set `OPENROUTER_API_KEY` to enable the fallback. It includes a FastAPI API, a Gradio upload demo, and a Next.js invoice review frontend.
 
 ## Run locally
 
@@ -31,6 +31,21 @@ See [Testing](docs/TESTING.md) for contract and container checks.
 - [Monitoring](monitoring/README.md)
 - [Benchmarks](benchmarks/README.md)
 - [Model card](models/layoutlmv3-lora-invoice-number/README.md)
+- [Next.js frontend setup and deployment](frontend/README.md)
+
+## Demo
+
+Upload a receipt, review the invoice number, then confirm or copy it.
+
+![Invoice review demo](docs/screenshots/invoice-review-result.png)
+
+<details>
+<summary>See the empty and mobile layouts</summary>
+
+![Empty upload state](docs/screenshots/invoice-review-empty.png)
+
+![Invoice review on a mobile viewport](docs/screenshots/invoice-review-mobile.png)
+</details>
 
 ## Repository structure
 
@@ -38,6 +53,7 @@ See [Testing](docs/TESTING.md) for contract and container checks.
 src/                 API, upload UI, and inference
 scripts/             Training, preprocessing, and model export
 deploy/              Dockerfiles and Runpod worker setup
+frontend/            Next.js invoice review app
 tests/               Pytest, end-to-end, and load tests
 data/  models/        Datasets and model files
 docs/  monitoring/    Guides and production monitoring
